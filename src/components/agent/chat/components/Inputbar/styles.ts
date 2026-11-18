@@ -448,8 +448,8 @@ export const SendButton = styled(InputIconButton).attrs({
   box-shadow: none;
 
   svg {
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
   }
 
   &:disabled {

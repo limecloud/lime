@@ -57,7 +57,7 @@ mod tests {
     }
 
     #[test]
-    fn ultra_uses_codex_fallback_order() {
+    fn ultra_uses_host_fallback_order() {
         let invalid_override = Some("unsupported");
         assert_eq!(
             reasoning_effort_for_request(

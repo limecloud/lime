@@ -1,6 +1,6 @@
 //! Provider wire lowering owner.
 //!
-//! Provider-neutral requests use `runtime-core::llm_protocol::canonical`.
+//! Provider-neutral requests use `model-routing-core::llm_protocol::canonical`.
 //! Media-specific body lowering remains here beside the provider network
 //! boundary. OpenCode reference:
 //! `packages/llm/src/route/protocol.ts` and `protocols/*.ts` at commit
@@ -16,7 +16,7 @@ mod xai_video_generation;
 
 pub use common::ProtocolMappingError;
 
-use runtime_core::CanonicalRequest;
+use model_routing_core::CanonicalRequest;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]

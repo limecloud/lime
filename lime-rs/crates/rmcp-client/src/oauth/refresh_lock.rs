@@ -8,7 +8,6 @@
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
-use utils_home_dir::find_lime_home;
 use sha2::Digest;
 use sha2::Sha256;
 use std::fs;
@@ -18,6 +17,7 @@ use std::path::Path;
 use std::time::Duration;
 use tokio::time::sleep;
 use tokio::time::timeout;
+use utils_home_dir::find_lime_home;
 
 const REFRESH_LOCK_DIR: &str = "mcp-oauth-locks";
 const REFRESH_LOCK_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(/*secs*/ 60);

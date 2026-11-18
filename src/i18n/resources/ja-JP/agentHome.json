@@ -9,5 +9,6 @@
   "agentChat.home.composer.placeholder": "自由に入力してください",
   "agentChat.home.composer.pathReferenceFallbackPrompt": "これらのファイルまたはフォルダーを確認してください。",
   "agentChat.home.title": "何を作りましょうか？",
-  "agentChat.home.titleInProject": "<projectSelect>{{projectName}}</projectSelect> で何を作りたいですか？"
+  "agentChat.home.titleInProject": "<projectSelect>{{projectName}}</projectSelect> で何を作りたいですか？",
+  "agentChat.home.titleInProjectNonGit": "<projectSelect>{{projectName}}</projectSelect> で何をしますか？"
 }

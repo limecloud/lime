@@ -8,7 +8,7 @@ use std::process::Command;
 #[tokio::test]
 async fn background_commands_have_no_console_under_detached_parent() {
     const TEST_NAME: &str = "tests::background_commands_have_no_console_under_detached_parent";
-    const PHASE: &str = "CODEX_TEST_BACKGROUND_COMMAND_PHASE";
+    const PHASE: &str = "LIME_TEST_BACKGROUND_COMMAND_PHASE";
     let executable = std::env::current_exe().expect("test executable");
     match std::env::var(PHASE).as_deref() {
         Ok("probe") => {

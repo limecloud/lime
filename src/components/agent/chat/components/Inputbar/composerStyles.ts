@@ -26,7 +26,7 @@ export const Container = styled.div`
   flex-direction: column;
   position: relative;
   z-index: 2;
-  padding: 0 8px 10px;
+  padding: 0 8px 8px;
   width: 100%;
   max-width: none;
   margin: 0;
@@ -44,23 +44,18 @@ export const InputBarContainer = styled.div`
   container: composer / inline-size;
   min-width: 0;
   position: relative;
-  border: 0.5px solid var(--lime-surface-border-strong);
-  border-radius: 18px;
-  padding: 8px 8px 0;
+  border: 0;
+  border-radius: 22px;
+  padding: 14px 12px 0;
   background: var(--lime-surface);
 
-  &:focus-within {
-    border-color: var(--lime-brand-strong);
-  }
-
   &.file-dragging {
-    border-style: dashed;
-    border-color: var(--lime-brand-strong);
+    border: 1px dashed var(--lime-brand-strong);
     background: var(--lime-brand-soft);
   }
 
   &.floating-composer {
-    padding: 12px 8px 0;
+    padding: 14px 12px 0;
   }
 
   &.context-connected {
@@ -141,13 +136,13 @@ export const StyledComposerEditor = styled(ComposerEditor)`
   font-size: 14px;
   color: hsl(var(--foreground));
   /* 普通草稿保留紧凑文本区，长内容随原编辑器增长或展开。 */
-  min-height: 44px;
+  min-height: 40px;
   overflow-wrap: anywhere;
 
   &.floating-composer {
     font-size: 14px;
     line-height: 1.5;
-    min-height: 44px;
+    min-height: 40px;
   }
 
   [data-testid="inputbar-core-container"]:has([data-composer-expand-toggle]) & {

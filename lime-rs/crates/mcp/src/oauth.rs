@@ -1,3 +1,4 @@
+use crate::auth_status::McpServerAuthExt;
 use crate::oauth_store::PersistentCredentialStore;
 use crate::streamable_http::build_default_headers;
 use crate::types::{McpError, McpServerConfig, McpServerTransport};
@@ -95,6 +96,7 @@ impl McpOAuthRegistry {
                 bearer_token_env_var,
                 http_headers,
                 env_http_headers,
+                ..
             } => (url, bearer_token_env_var, http_headers, env_http_headers),
             McpServerTransport::Stdio { .. } => {
                 return Err(McpError::ConfigError(

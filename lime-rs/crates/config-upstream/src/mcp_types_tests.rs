@@ -741,3 +741,58 @@ fn deserialize_rejects_inline_bearer_token_field() {
         "unexpected error: {err}"
     );
 }
+
+#[test]
+fn mcp_config_exposes_lime_compat_accessors() {
+    let config: McpServerConfig = toml::from_str(
+        r#"
+            command = "node"
+            args = ["server.js"]
+            env = { TOKEN = "secret" }
+            env_vars = ["WORKSPACE"]
+            cwd = "/tmp/demo"
+            startup_timeout_sec = 12.0
+            tool_timeout_sec = 7.0
+            enabled_tools = ["Read", " write "]
+            disabled_tools = ["write"]
+        "#,
+    )
+    .expect("config");
+
+    assert_eq!(config.command(), "node");
+    assert_eq!(config.args(), ["server.js"]);
+    assert_eq!(
+        config.env().get("TOKEN").map(String::as_str),
+        Some("secret")
+    );
+    assert_eq!(config.env_vars(), ["WORKSPACE"]);
+    assert_eq!(config.transport_kind(), "stdio");
+    assert_eq!(
+        config.sanitized_cwd(),
+        Some(std::path::PathBuf::from("/tmp/demo"))
+    );
+    assert_eq!(config.startup_timeout_secs(), 12);
+    assert_eq!(config.tool_timeout_secs(), 7);
+    assert!(config.tool_is_enabled("read"));
+    assert!(!config.tool_is_enabled("write"));
+    assert!(!config.tool_is_enabled("missing"));
+}
+
+#[test]
+fn mcp_config_timeout_helpers_clamp_and_default() {
+    let config: McpServerConfig = toml::from_str(
+        r#"
+            command = "node"
+            startup_timeout_sec = 0.5
+            tool_timeout_sec = 400.0
+        "#,
+    )
+    .expect("config");
+
+    assert_eq!(config.startup_timeout_secs(), 1);
+    assert_eq!(config.tool_timeout_secs(), 300);
+
+    let default: McpServerConfig = toml::from_str(r#"command = "node""#).expect("config");
+    assert_eq!(default.startup_timeout_secs(), 30);
+    assert_eq!(default.tool_timeout_secs(), 30);
+}

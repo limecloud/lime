@@ -43,7 +43,7 @@ lime-media-runtime.workspace = true
 lime-mcp.workspace = true
 model-provider.workspace = true
 notify.workspace = true
-runtime-core.workspace = true
+model-routing-core.workspace = true
 lime-skills.workspace = true
 lime-services = { workspace = true, features = ["local-sensevoice"] }
 lime-scheduler.workspace = true
@@ -85,6 +85,8 @@ url.workspace = true
 uuid = { workspace = true, features = ["v5"] }
 zip.workspace = true
 zstd.workspace = true
+
+lime-utils-path-uri.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

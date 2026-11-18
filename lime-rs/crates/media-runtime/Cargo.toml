@@ -18,7 +18,7 @@ image = { version = "0.25.9", default-features = false, features = ["png"] }
 model-provider.workspace = true
 reqwest.workspace = true
 tokio.workspace = true
-runtime-core.workspace = true
+model-routing-core.workspace = true
 
 [dev-dependencies]
 axum.workspace = true

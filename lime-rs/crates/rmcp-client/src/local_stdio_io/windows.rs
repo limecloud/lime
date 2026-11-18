@@ -6,11 +6,11 @@ use std::io;
 use std::os::windows::fs::OpenOptionsExt;
 use std::ptr;
 
-use utils_pty::ChildStdin;
-use utils_pty::Command;
 use tokio::net::windows::named_pipe::NamedPipeServer;
 use tokio::net::windows::named_pipe::PipeMode;
 use tokio::net::windows::named_pipe::ServerOptions;
+use utils_pty::ChildStdin;
+use utils_pty::Command;
 use uuid::Uuid;
 use windows_sys::Win32::Foundation::GENERIC_WRITE;
 use windows_sys::Win32::Foundation::LocalFree;

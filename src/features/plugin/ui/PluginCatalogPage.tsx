@@ -366,14 +366,14 @@ function PluginCatalogContent({
       className={`lime-workbench-theme-scope lime-workbench-surface-scope flex min-h-0 flex-1 flex-col overflow-auto ${embedded ? "bg-transparent" : "bg-[color:var(--lime-surface-soft)]"}`}
     >
       <div
-        className={`mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-6 ${embedded ? "px-0 py-0" : "px-6 py-7 xl:px-8"}`}
+        className={`mx-auto flex w-full max-w-[960px] flex-1 flex-col gap-6 ${embedded ? "px-0 py-0" : "px-6 py-7 xl:px-8"}`}
       >
         <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
-            <h1 className="text-[24px] font-semibold tracking-[-0.02em] text-[color:var(--lime-text-strong)]">
+            <h1 className="flex min-h-9 items-center text-[24px] font-medium leading-[1.2] text-[color:var(--lime-text-strong)]">
               {t("plugin.catalog.v2.title")}
             </h1>
-            <p className="mt-1 text-[13px] leading-5 text-[color:var(--lime-text-muted)]">
+            <p className="mt-1 max-w-lg text-base leading-6 text-[color:var(--lime-text-muted)]">
               {t("plugin.catalog.v2.subtitle")}
             </p>
           </div>
@@ -386,7 +386,7 @@ function PluginCatalogContent({
               <input
                 value={query}
                 onChange={(event) => setQuery(event.currentTarget.value)}
-                className="h-9 w-full rounded-full border-[0.5px] border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] pl-9 pr-4 text-sm text-[color:var(--lime-text-strong)] outline-none placeholder:text-[color:var(--lime-text-muted)] focus:border-[color:var(--lime-surface-border-strong)]"
+                className="h-8 w-full rounded-full border-[0.5px] border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] pl-9 pr-4 text-sm text-[color:var(--lime-text-strong)] outline-none placeholder:text-[color:var(--lime-text-muted)] focus:border-[color:var(--lime-surface-border-strong)]"
                 placeholder={t("plugin.catalog.v2.searchPlaceholder")}
                 aria-label={t("plugin.catalog.v2.searchLabel")}
                 data-testid="plugin-catalog-search"
@@ -394,7 +394,7 @@ function PluginCatalogContent({
             </label>
             <button
               type="button"
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-[0.5px] border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-surface-hover)] hover:text-[color:var(--lime-text-strong)] disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-transparent bg-transparent text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-surface-hover)] hover:text-[color:var(--lime-text-strong)] disabled:cursor-not-allowed disabled:opacity-50"
               onClick={() => void refresh()}
               disabled={loading}
               title={t("plugin.catalog.v2.refresh")}
@@ -405,7 +405,7 @@ function PluginCatalogContent({
             </button>
             <button
               type="button"
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-[0.5px] border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-surface-hover)] hover:text-[color:var(--lime-text-strong)]"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-[0.5px] border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-surface-hover)] hover:text-[color:var(--lime-text-strong)]"
               onClick={() => setSettingsOpen(true)}
               aria-label={t("plugin.catalog.v2.settings")}
               title={t("plugin.catalog.v2.settings")}
@@ -415,7 +415,7 @@ function PluginCatalogContent({
             </button>
             <button
               type="button"
-              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-[color:var(--lime-text-strong)] px-4 text-sm font-semibold text-[color:var(--lime-surface)] shadow-none hover:opacity-90"
+              className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-text-strong)] px-2.5 text-[13px] font-medium text-[color:var(--lime-surface)] shadow-none hover:opacity-90"
               onClick={() => setAddMarketplaceOpen(true)}
               data-testid="plugin-catalog-add"
             >
@@ -430,11 +430,12 @@ function PluginCatalogContent({
             <button
               key={nextView}
               type="button"
-              className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-sm font-medium ${
+              className={`inline-flex h-9 items-center gap-1.5 rounded-full px-4 text-[13px] font-medium ${
                 view === nextView
                   ? "bg-[color:var(--lime-surface-hover)] text-[color:var(--lime-text-strong)]"
                   : "text-[color:var(--lime-text-muted)] hover:text-[color:var(--lime-text-strong)]"
               }`}
+              aria-selected={view === nextView}
               onClick={() => {
                 setView(nextView);
                 setSelectedId(null);
@@ -550,10 +551,10 @@ function PluginCatalogContent({
                 t("plugin.catalog.v2.category.other"),
               ).map((group) => (
                 <section key={group.category} className="min-w-0">
-                  <h2 className="mb-3 text-base font-semibold text-[color:var(--lime-text-strong)]">
+                  <h2 className="mb-6 min-h-7 text-lg font-medium text-[color:var(--lime-text-strong)]">
                     {group.category}
                   </h2>
-                  <div className="grid min-w-0 grid-cols-1 content-start gap-3 md:grid-cols-2">
+                  <div className="grid min-w-0 grid-cols-1 content-start gap-x-6 gap-y-2 md:grid-cols-2">
                     {group.entries.map((entry) => (
                       <PluginCatalogCard
                         key={entry.plugin.id}

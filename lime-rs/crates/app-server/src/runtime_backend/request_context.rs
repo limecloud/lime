@@ -8,7 +8,7 @@ use lime_agent::{
     request_tool_policy_with_additional_required_tools, resolve_request_tool_policy_with_mode,
     RequestToolPolicy, RequestToolPolicyMode, SessionProviderConfig,
 };
-pub(super) use runtime_core::RuntimeModelSelection;
+pub(super) use model_routing_core::RuntimeModelSelection;
 use serde_json::Value;
 use std::path::PathBuf;
 
@@ -178,7 +178,7 @@ pub(super) fn resolve_runtime_model_selection(
     let metadata_values = runtime_model_metadata_values(request);
     let preferred_slot = app_server_turn_policy_value(request, LIME_RUNTIME_MODEL_SLOT_KEY);
     if let Some(preferred_slot) = preferred_slot {
-        if let Some(selection) = runtime_core::selection_from_profile_model_slot(
+        if let Some(selection) = model_routing_core::selection_from_profile_model_slot(
             &metadata_values,
             reasoning_effort_from_request(request),
             Some(preferred_slot),
@@ -192,7 +192,7 @@ pub(super) fn resolve_runtime_model_selection(
     if let Some(selection) = selection_from_host_provider_config(request) {
         return Ok(selection);
     }
-    if let Some(selection) = runtime_core::selection_from_profile_model_slot(
+    if let Some(selection) = model_routing_core::selection_from_profile_model_slot(
         &metadata_values,
         reasoning_effort_from_request(request),
         None,

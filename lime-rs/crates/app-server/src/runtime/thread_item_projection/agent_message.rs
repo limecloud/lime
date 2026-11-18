@@ -5,7 +5,7 @@ use super::base_item;
 use super::compact_json;
 use super::event_metadata;
 use app_server_protocol::AgentEvent;
-use runtime_core::{RuntimeContentPart, RuntimeMessageDeltaContent};
+use model_routing_core::{RuntimeContentPart, RuntimeMessageDeltaContent};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 

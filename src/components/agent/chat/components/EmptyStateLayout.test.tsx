@@ -81,6 +81,30 @@ describe("EmptyStateLayout", () => {
     }
   });
 
+  it("非 Git 项目使用动作型标题", async () => {
+    await changeLimeLocale("en-US");
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    try {
+      act(() =>
+        root.render(
+          <EmptyStateLayout
+            composer={<div data-testid="home-composer">输入区</div>}
+            projectName="Lime"
+            projectIsGit={false}
+          />,
+        ),
+      );
+      expect(host.querySelector("h1")?.textContent).toBe(
+        "What do you want to do in Lime?",
+      );
+    } finally {
+      act(() => root.unmount());
+      host.remove();
+    }
+  });
+
   it("项目名是标题内联按钮，点击交给 Composer 项目选择器", async () => {
     await changeLimeLocale("en-US");
     const onProjectSelect = vi.fn();

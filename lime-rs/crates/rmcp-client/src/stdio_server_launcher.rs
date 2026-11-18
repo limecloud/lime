@@ -42,24 +42,12 @@ use exec_server::ExecBackend;
 use exec_server::ExecEnvPolicy;
 use exec_server::ExecParams;
 use exec_server::ExecProcess;
-use protocol::config_types::ShellEnvironmentPolicyInherit;
-use lime_utils_path_uri::LegacyAppPathString;
-use lime_utils_path_uri::PathUri;
-#[cfg(unix)]
-use utils_pty::Child;
-use utils_pty::Command;
-#[cfg(unix)]
-use utils_pty::DescriptorPolicy;
-use utils_pty::ProcessMode;
-#[cfg(unix)]
-use utils_pty::process_group::kill_process_group;
-#[cfg(unix)]
-use utils_pty::process_group::terminate_process_group;
-#[cfg(unix)]
-use utils_pty::process_group::wait_for_process_group_exit;
 use futures::FutureExt;
 use futures::future::BoxFuture;
 use futures::future::Shared;
+use lime_utils_path_uri::LegacyAppPathString;
+use lime_utils_path_uri::PathUri;
+use protocol::config_types::ShellEnvironmentPolicyInherit;
 use rmcp::service::RoleClient;
 use rmcp::service::RxJsonRpcMessage;
 use rmcp::service::TxJsonRpcMessage;
@@ -74,6 +62,18 @@ use tokio::time::Instant;
 use tokio_util::task::AbortOnDropHandle;
 use tracing::info;
 use tracing::warn;
+#[cfg(unix)]
+use utils_pty::Child;
+use utils_pty::Command;
+#[cfg(unix)]
+use utils_pty::DescriptorPolicy;
+use utils_pty::ProcessMode;
+#[cfg(unix)]
+use utils_pty::process_group::kill_process_group;
+#[cfg(unix)]
+use utils_pty::process_group::terminate_process_group;
+#[cfg(unix)]
+use utils_pty::process_group::wait_for_process_group_exit;
 
 use crate::executor_process_transport::ExecutorProcessTransport;
 use crate::local_stdio_transport::LocalStdioTransport;
@@ -547,15 +547,17 @@ impl LocalStdioServerLauncher {
                 job,
                 discovery_root: discovery_owned.then_some(root),
             }),
-            None => process_id.and_then(|process_id| {
-                match utils_pty::JobObject::open_process_handle(process_id) {
-                    Ok(handle) => Some(LocalProcessTerminator::Process(handle)),
-                    Err(error) => {
-                        warn!("Windows MCP process handle unavailable: {error}");
-                        None
+            None => {
+                process_id.and_then(|process_id| {
+                    match utils_pty::JobObject::open_process_handle(process_id) {
+                        Ok(handle) => Some(LocalProcessTerminator::Process(handle)),
+                        Err(error) => {
+                            warn!("Windows MCP process handle unavailable: {error}");
+                            None
+                        }
                     }
-                }
-            }),
+                })
+            }
         };
         #[cfg(unix)]
         let (transport, terminator) = {
@@ -1033,10 +1035,10 @@ impl ExecutorStdioServerLauncher {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pretty_assertions::assert_eq;
     use protocol::config_types::EnvironmentVariablePattern;
     use protocol::config_types::ShellEnvironmentPolicy;
     use protocol::shell_environment;
-    use pretty_assertions::assert_eq;
 
     #[cfg(windows)]
     #[test]

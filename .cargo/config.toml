@@ -1,0 +1,19 @@
+[build]
+# 从仓库根目录通过 --manifest-path 调 Rust 子工作区时，也统一写回 lime-rs/target，
+# 避免 cargo 默认在被 watch 的子目录下生成新的 target/。
+target-dir = "lime-rs/target"
+
+# 旧会话恢复需解析并重新编码完整日志以校验摘要；优化实际调用方，
+# 避免泛型 JSON 编码仍落在未优化实例上，使开发态冷恢复超过 IPC 时限。
+[profile.dev.package.serde_json]
+opt-level = 3
+
+[profile.dev.package.lime-core]
+opt-level = 3
+
+[profile.dev.package.app-server]
+opt-level = 2
+
+# 语义回归保留快速编译；冷恢复性能由 dev binary 的真实桌面路径验证。
+[profile.test.package.app-server]
+opt-level = 0

@@ -44,7 +44,7 @@ fn openai_compatible_image_parts_use_only_native_wire_fields() {
 
 #[test]
 fn anthropic_base64_image_keeps_required_media_type() {
-    let message = runtime_core::CanonicalMessage {
+    let message = model_routing_core::CanonicalMessage {
         id: None,
         role: CanonicalRole::User,
         content: image_content(),
@@ -71,7 +71,7 @@ fn image_detail_is_lowered_only_to_supported_openai_fields() {
     let chat = chat_content(&content, &payloads);
     let responses = responses_input_content(&content, &payloads);
     let anthropic = anthropic_message(
-        &runtime_core::CanonicalMessage {
+        &model_routing_core::CanonicalMessage {
             id: None,
             role: CanonicalRole::User,
             content,
@@ -197,7 +197,7 @@ fn responses_lowering_emits_session_scoped_prompt_cache_key() {
 
 fn request_with_tool() -> CanonicalRequest {
     let mut request = CanonicalRequest::text("gpt-5-codex", "hello");
-    request.tools = vec![runtime_core::CanonicalToolDefinition::function(
+    request.tools = vec![model_routing_core::CanonicalToolDefinition::function(
         "read_file",
         "Read a file",
         json!({
@@ -332,14 +332,14 @@ fn custom_responses_tools_preserve_freeform_history_and_fail_closed_elsewhere() 
     request.tools = vec![CanonicalToolDefinition::custom(
         "run_code",
         "Run a bounded CodeMode program",
-        runtime_core::FreeformToolFormat {
+        model_routing_core::FreeformToolFormat {
             r#type: "grammar".to_string(),
             syntax: "lark".to_string(),
             definition: "program := statement*".to_string(),
         },
     )];
     request.messages.extend([
-        runtime_core::CanonicalMessage {
+        model_routing_core::CanonicalMessage {
             id: None,
             role: CanonicalRole::Assistant,
             content: vec![ContentPart::CustomToolCall {
@@ -351,7 +351,7 @@ fn custom_responses_tools_preserve_freeform_history_and_fail_closed_elsewhere() 
             }],
             metadata: BTreeMap::new(),
         },
-        runtime_core::CanonicalMessage {
+        model_routing_core::CanonicalMessage {
             id: None,
             role: CanonicalRole::Tool,
             content: vec![ContentPart::CustomToolResult {
@@ -408,7 +408,7 @@ fn custom_responses_tools_preserve_freeform_history_and_fail_closed_elsewhere() 
 }
 
 #[test]
-fn responses_only_emits_codex_turn_identity_and_protects_reserved_metadata() {
+fn responses_only_emits_host_turn_identity_and_protects_reserved_metadata() {
     let metadata = super::super::CurrentProviderRequestMetadata::new(
         "session-1",
         "thread-1",
@@ -416,7 +416,7 @@ fn responses_only_emits_codex_turn_identity_and_protects_reserved_metadata() {
         Some("thread-source".to_string()),
     )
     .with_history_ingest_requested(true)
-    .with_extra(runtime_core::ProviderMetadata::from([
+    .with_extra(model_routing_core::ProviderMetadata::from([
         ("session_id".to_string(), json!("overridden-session")),
         (
             "forked_from_thread_id".to_string(),
@@ -452,7 +452,7 @@ fn responses_only_emits_codex_turn_identity_and_protects_reserved_metadata() {
     assert_eq!(client_metadata["turn_id"], "turn-1");
     assert!(!client_metadata.contains_key("forked_from_thread_id"));
     let turn_metadata: Value = serde_json::from_str(
-        client_metadata["x-codex-turn-metadata"]
+        client_metadata["x-lime-turn-metadata"]
             .as_str()
             .expect("serialized turn metadata"),
     )
@@ -501,7 +501,7 @@ fn responses_omits_history_ingest_metadata_for_normal_turns() {
     )
     .expect("Responses lowering");
     let turn_metadata: Value = serde_json::from_str(
-        responses["client_metadata"]["x-codex-turn-metadata"]
+        responses["client_metadata"]["x-lime-turn-metadata"]
             .as_str()
             .expect("serialized turn metadata"),
     )
@@ -550,7 +550,7 @@ fn openai_service_tier_uses_native_wire_field() {
 
 #[test]
 fn chat_assistant_history_preserves_reasoning_content() {
-    let message = runtime_core::CanonicalMessage {
+    let message = model_routing_core::CanonicalMessage {
         id: None,
         role: CanonicalRole::Assistant,
         content: vec![
@@ -586,7 +586,7 @@ fn responses_history_preserves_completed_reasoning_without_synthesizing_deltas()
         if completed {
             content.push(ContentPart::RawResponseItem { item: raw.clone() });
         }
-        let message = runtime_core::CanonicalMessage {
+        let message = model_routing_core::CanonicalMessage {
             id: None,
             role: CanonicalRole::Assistant,
             content,

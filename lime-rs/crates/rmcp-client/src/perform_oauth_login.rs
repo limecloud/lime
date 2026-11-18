@@ -974,10 +974,10 @@ mod tests {
     use exec_server::HttpRequestResponse;
     use exec_server::HttpResponseBodyStream;
     use exec_server::RouteAwareHttpClient;
-    use http_client::HttpClientFactory;
-    use http_client::OutboundProxyPolicy;
     use futures::future::BoxFuture;
     use http::HeaderMap;
+    use http_client::HttpClientFactory;
+    use http_client::OutboundProxyPolicy;
     use oauth2::TokenResponse;
     use pretty_assertions::assert_eq;
     use serde_json::json;

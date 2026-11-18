@@ -23,7 +23,7 @@ fn stdio_server_spec(
                 env_vars: Vec::new(),
                 command,
                 args,
-                env: HashMap::new(),
+                env: Some(HashMap::new()),
                 cwd: None,
             },
             enabled: true,

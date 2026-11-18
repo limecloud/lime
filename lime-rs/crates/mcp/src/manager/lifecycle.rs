@@ -1,4 +1,5 @@
 use super::McpClientManager;
+use crate::auth_status::McpServerAuthExt;
 use crate::environment::McpEnvironment;
 use crate::naming::validate_server_name;
 use crate::stdio_launcher::{LocalStdioLauncher, StdioLaunch};

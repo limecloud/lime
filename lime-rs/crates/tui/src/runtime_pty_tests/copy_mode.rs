@@ -128,7 +128,9 @@ pub(super) fn exercise(
         starts, 1,
         "copy navigation and cancellation must not submit a canonical turn"
     );
-    println!("TUI_COPY_MODE_OK whole=source blocks=code,quote,table user=literal resize=frozen cancel=restored turns=once");
+    println!(
+        "TUI_COPY_MODE_OK whole=source blocks=code,quote,table user=literal resize=frozen cancel=restored turns=once"
+    );
 }
 
 fn exercise_status_copy(
@@ -232,5 +234,7 @@ fn exercise_status_copy(
                 && !screen.contains("SHOULD_NOT_SUBMIT")
         },
     );
-    println!("TUI_STATUS_COPY_OK source=canonical-snapshot fields=model,directory,session navigation=shared resize=preserved cancel=restored turns=none");
+    println!(
+        "TUI_STATUS_COPY_OK source=canonical-snapshot fields=model,directory,session navigation=shared resize=preserved cancel=restored turns=none"
+    );
 }

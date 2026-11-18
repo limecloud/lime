@@ -7,7 +7,7 @@ exclude = [
 resolver = "2"
 
 [workspace.package]
-version = "1.179.0"
+version = "1.180.0"
 edition = "2021"
 authors = ["coso"]
 repository = "https://github.com/limecloud/lime"
@@ -35,7 +35,7 @@ tool-runtime = { path = "crates/tool-runtime" }
 lime-scheduler = { path = "crates/scheduler" }
 lime-gateway = { path = "crates/gateway" }
 lime-media-runtime = { path = "crates/media-runtime" }
-runtime-core = { path = "crates/runtime-core" }
+model-routing-core = { path = "crates/model-routing-core" }
 app-server = { path = "crates/app-server" }
 app-server-client = { path = "crates/app-server-client" }
 app-server-daemon = { path = "crates/app-server-daemon" }

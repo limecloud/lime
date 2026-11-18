@@ -7,13 +7,10 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import {
-  Archive,
-  CalendarClock,
   Copy,
-  GitFork,
+  FolderInput,
+  SquareArrowOutUpRight,
   MoreHorizontal,
-  Pencil,
-  Pin,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -22,6 +19,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Modal } from "@/components/Modal";
+import type { Project } from "@limecloud/app-server-client";
 import { HeaderAction } from "@/components/app-shell/AppShell";
 import {
   HeaderToolbar,
@@ -42,6 +42,10 @@ interface ThreadWorkspaceHeaderProps {
   onRename?: (title: string) => Promise<void>;
   onArchive?: () => Promise<void>;
   onFork?: () => Promise<void>;
+  onDelete?: () => Promise<void>;
+  projects?: Project[];
+  projectId?: string | null;
+  onMoveToProject?: (projectId: string | null) => Promise<void>;
   actions?: ReactNode;
   summaryToggle?: ReactNode;
   leading?: ReactNode;
@@ -82,12 +86,18 @@ export function ThreadWorkspaceHeader({
   onRename,
   onArchive,
   onFork,
+  onDelete,
+  projects = [],
+  projectId = null,
+  onMoveToProject,
   actions,
   summaryToggle,
   leading,
 }: ThreadWorkspaceHeaderProps) {
   const { t: tNavigation } = useTranslation("navigation");
   const [editingTitle, setEditingTitle] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [moveProjectOpen, setMoveProjectOpen] = useState(false);
   const [titleDraft, setTitleDraft] = useState(title);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const currentSessionId = useRef(sessionId);
@@ -229,7 +239,6 @@ export function ThreadWorkspaceHeader({
                         className="whitespace-nowrap"
                         onClick={startRename}
                       >
-                        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                         {String(
                           tNavigation(
                             "navigation.sidebar.conversations.menu.rename",
@@ -245,7 +254,6 @@ export function ThreadWorkspaceHeader({
                       data-testid="thread-workspace-header-pin"
                       onClick={() => requestSessionPinToggle(sessionId)}
                     >
-                      <Pin className="h-3.5 w-3.5" aria-hidden="true" />
                       {String(
                         tNavigation("navigation.sidebar.conversations.menu.pin"),
                       )}
@@ -261,7 +269,6 @@ export function ThreadWorkspaceHeader({
                           void onFork();
                         }}
                       >
-                        <GitFork className="h-3.5 w-3.5" aria-hidden="true" />
                         {String(
                           tNavigation(
                             "navigation.sidebar.conversations.menu.fork",
@@ -274,7 +281,7 @@ export function ThreadWorkspaceHeader({
                       data-testid="thread-workspace-header-copy"
                       onClick={requestCopyConversation}
                     >
-                      <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                      <Copy className="h-4 w-4" aria-hidden="true" />
                       {String(
                         tNavigation("navigation.sidebar.conversations.menu.copy"),
                       )}
@@ -287,13 +294,30 @@ export function ThreadWorkspaceHeader({
                           requestScheduledTaskForThread(scheduledTaskThreadId)
                         }
                       >
-                        <CalendarClock
-                          className="h-3.5 w-3.5"
+                        {String(
+                          tNavigation(
+                            "navigation.sidebar.conversations.menu.addScheduledTask",
+                          ),
+                        )}
+                      </DropdownMenuItem>
+                    ) : null}
+                    {window.electronAPI?.deepLink?.openSessionInNewWindow ? (
+                      <DropdownMenuItem
+                        className="whitespace-nowrap"
+                        data-testid="thread-workspace-header-open-window"
+                        onClick={() => {
+                          void window.electronAPI?.deepLink?.openSessionInNewWindow?.(
+                            sessionId,
+                          );
+                        }}
+                      >
+                        <SquareArrowOutUpRight
+                          className="h-4 w-4"
                           aria-hidden="true"
                         />
                         {String(
                           tNavigation(
-                            "navigation.sidebar.conversations.menu.addScheduledTask",
+                            "navigation.sidebar.conversations.menu.openInNewWindow",
                           ),
                         )}
                       </DropdownMenuItem>
@@ -306,7 +330,6 @@ export function ThreadWorkspaceHeader({
                           void onArchive();
                         }}
                       >
-                        <Archive className="h-3.5 w-3.5" aria-hidden="true" />
                         {String(
                           tNavigation(
                             "navigation.sidebar.conversations.menu.archive",
@@ -315,6 +338,33 @@ export function ThreadWorkspaceHeader({
                         <span className="ml-auto pl-6 font-mono text-[11px] text-muted-foreground">
                           {archiveShortcut}
                         </span>
+                      </DropdownMenuItem>
+                    ) : null}
+                    {onDelete ? (
+                      <DropdownMenuItem
+                        className="whitespace-nowrap text-[color:var(--lime-danger,#b91c1c)]"
+                        data-testid="thread-workspace-header-delete"
+                        onClick={() => setDeleteConfirmOpen(true)}
+                      >
+                        {String(
+                          tNavigation(
+                            "navigation.sidebar.conversations.menu.delete",
+                          ),
+                        )}
+                      </DropdownMenuItem>
+                    ) : null}
+                    {onMoveToProject ? (
+                      <DropdownMenuItem
+                        className="whitespace-nowrap"
+                        data-testid="thread-workspace-header-move-project"
+                        onClick={() => setMoveProjectOpen(true)}
+                      >
+                        <FolderInput className="h-4 w-4" aria-hidden="true" />
+                        {String(
+                          tNavigation(
+                            "navigation.sidebar.conversations.menu.moveToProject",
+                          ),
+                        )}
                       </DropdownMenuItem>
                     ) : null}
                   </DropdownMenuContent>
@@ -469,6 +519,81 @@ export function ThreadWorkspaceHeader({
             ) : null}
           </HeaderToolbar.Actions>
         </HeaderAction>
+      ) : null}
+      {onDelete ? (
+        <ConfirmDialog
+          isOpen={deleteConfirmOpen}
+          title={String(
+            tNavigation("navigation.sidebar.conversations.menu.delete"),
+          )}
+          message={String(
+            tNavigation("navigation.sidebar.conversations.delete.confirm", {
+              title,
+            }),
+          )}
+          confirmText={String(
+            tNavigation("navigation.sidebar.conversations.menu.delete"),
+          )}
+          onCancel={() => setDeleteConfirmOpen(false)}
+          onConfirm={() => {
+            setDeleteConfirmOpen(false);
+            void onDelete();
+          }}
+        />
+      ) : null}
+      {onMoveToProject ? (
+        <Modal
+          isOpen={moveProjectOpen}
+          onClose={() => setMoveProjectOpen(false)}
+          maxWidth="max-w-md"
+          aria-labelledby="thread-move-project-title"
+        >
+          <div className="p-5">
+            <h2
+              id="thread-move-project-title"
+              className="text-base font-semibold text-[color:var(--lime-text-strong)]"
+            >
+              {String(
+                tNavigation(
+                  "navigation.sidebar.conversations.menu.moveToProject",
+                ),
+              )}
+            </h2>
+            <div className="mt-3 flex max-h-[320px] flex-col gap-1 overflow-y-auto">
+              {projects.map((project) => (
+                <button
+                  key={project.id}
+                  type="button"
+                  className="flex h-9 items-center justify-between rounded-lg px-3 text-left text-sm hover:bg-[color:var(--lime-surface-hover)]"
+                  onClick={() => {
+                    setMoveProjectOpen(false);
+                    void onMoveToProject(project.id);
+                  }}
+                >
+                  <span className="truncate">{project.name}</span>
+                  {project.id === projectId ? <span className="text-xs">✓</span> : null}
+                </button>
+              ))}
+              {projectId ? (
+                <button
+                  type="button"
+                  className="mt-2 flex h-9 items-center rounded-lg px-3 text-left text-sm text-[color:var(--lime-danger,#b91c1c)] hover:bg-[color:var(--lime-danger-soft)]"
+                  data-testid="thread-workspace-header-remove-project"
+                  onClick={() => {
+                    setMoveProjectOpen(false);
+                    void onMoveToProject(null);
+                  }}
+                >
+                  {String(
+                    tNavigation(
+                      "navigation.sidebar.conversations.menu.removeFromProject",
+                    ),
+                  )}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </Modal>
       ) : null}
     </>
   );

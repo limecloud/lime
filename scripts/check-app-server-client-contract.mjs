@@ -4760,7 +4760,7 @@ const checks = [
       "client.request<AppServerThreadListResponse>",
       "METHOD_THREAD_LIST",
       "listCanonicalSessionOverviews(",
-      "appServerThreadReadParams(threadId, false)",
+      "appServerThreadReadParams(threadId, true)",
       "appServerClient.readThread(",
       "appServerClient.updateThreadSettings(",
       "appServerClient.archiveThread(",
@@ -7258,13 +7258,10 @@ const checks = [
     absentSnippets: ['name = "app-server-agent-backend"'],
   },
   {
-    name: "Lime account boundary replaces upstream auth crates",
+    name: "Lime account boundary keeps account-provider; upstream login crate stays absent",
     file: "lime-rs/Cargo.lock",
     snippets: ['name = "account-provider"'],
-    absentSnippets: [
-      'name = "codex-login"',
-      'name = "connectors"',
-    ],
+    absentSnippets: ['name = "codex-login"'],
   },
   {
     name: "Retired patch-apply crate stays deleted",
@@ -7738,6 +7735,7 @@ checkRetiredRuntimeCoreMapperSurface();
 checkRetiredAgentRuntimeClientShells();
 checkRetiredToolWireSurface();
 checkOrchestratorHostBoundary();
+checkRuntimeOwnerBoundaries();
 checkCanonicalRendererSequenceGate();
 checkAgentUiPackageCanonicalNaming();
 
@@ -7791,6 +7789,44 @@ function checkAgentUiPackageCanonicalNaming() {
   }
 }
 
+
+function checkRuntimeOwnerBoundaries() {
+  const rules = [
+    {
+      crate: "model-provider",
+      forbidden: ["app-server", "agent-runtime", "lime-agent", "tool-runtime"],
+    },
+    {
+      crate: "tool-runtime",
+      forbidden: ["app-server", "agent-runtime", "lime-agent", "model-provider"],
+    },
+    {
+      crate: "agent-runtime",
+      forbidden: ["app-server", "lime-agent"],
+    },
+    {
+      crate: "agent",
+      forbidden: ["app-server"],
+    },
+    {
+      crate: "model-routing-core",
+      forbidden: ["app-server", "agent-runtime", "lime-agent", "tool-runtime"],
+    },
+  ];
+  for (const rule of rules) {
+    const manifestPath = `lime-rs/crates/${rule.crate}/Cargo.toml`;
+    const manifest = fs.readFileSync(path.join(repoRoot, manifestPath), "utf8");
+    for (const forbidden of rule.forbidden) {
+      const dependencyPattern = new RegExp(`^\\s*${forbidden}\\s*=`, "m");
+      if (dependencyPattern.test(manifest)) {
+        failures.push(
+          `runtime owner boundary violated: ${rule.crate} must not depend on ${forbidden}`,
+        );
+      }
+    }
+  }
+}
+
 function checkRetiredAppServerAgentBackendCrate() {
   const retiredCratePath = "lime-rs/crates/app-server-agent-backend";
   if (fs.existsSync(path.join(repoRoot, retiredCratePath))) {
@@ -7802,10 +7838,10 @@ function checkRetiredAppServerAgentBackendCrate() {
 
 function checkRetiredRuntimeCoreMapperSurface() {
   const retiredPaths = [
-    "lime-rs/crates/runtime-core/src/llm_protocol/mapper",
-    "lime-rs/crates/runtime-core/src/llm_protocol/types.rs",
-    "lime-rs/crates/runtime-core/src/llm_protocol/events.rs",
-    "lime-rs/crates/runtime-core/src/llm_protocol/tests.rs",
+    "lime-rs/crates/model-routing-core/src/llm_protocol/mapper",
+    "lime-rs/crates/model-routing-core/src/llm_protocol/types.rs",
+    "lime-rs/crates/model-routing-core/src/llm_protocol/events.rs",
+    "lime-rs/crates/model-routing-core/src/llm_protocol/tests.rs",
     "lime-rs/crates/model-provider/src/lowering/anthropic_messages.rs",
     "lime-rs/crates/model-provider/src/lowering/gemini.rs",
     "lime-rs/crates/model-provider/src/lowering/ollama_chat.rs",
@@ -7821,8 +7857,8 @@ function checkRetiredRuntimeCoreMapperSurface() {
   }
 
   const protocolFiles = [
-    "lime-rs/crates/runtime-core/src/llm_protocol.rs",
-    "lime-rs/crates/runtime-core/src/lib.rs",
+    "lime-rs/crates/model-routing-core/src/llm_protocol.rs",
+    "lime-rs/crates/model-routing-core/src/lib.rs",
   ];
   for (const relativePath of protocolFiles) {
     const content = fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
@@ -7844,7 +7880,7 @@ function checkRetiredRuntimeCoreMapperSurface() {
 
   const currentOllamaProtocolFiles = [
     "lime-rs/crates/app-server-protocol/src/protocol/v0/model.rs",
-    "lime-rs/crates/runtime-core/src/model_route.rs",
+    "lime-rs/crates/model-routing-core/src/model_route.rs",
     "lime-rs/crates/model-provider/src/runtime_provider.rs",
     "lime-rs/crates/agent/src/provider_configuration.rs",
     "lime-rs/crates/app-server/src/runtime_backend/model_route_contract.rs",

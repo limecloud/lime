@@ -1,5 +1,5 @@
 use super::CurrentProviderError;
-use runtime_core::{CanonicalRequest, ContentPart};
+use model_routing_core::{CanonicalRequest, ContentPart};
 use serde_json::Value;
 
 pub(super) fn ensure_structured_history(

@@ -130,7 +130,7 @@ fn intersect_resolved_provider_capabilities(
     }
 
     let Some(capability_gap) =
-        runtime_core::route_capability_gap(task_request, &resolved_route.capability_snapshot)
+        model_routing_core::route_capability_gap(task_request, &resolved_route.capability_snapshot)
     else {
         return;
     };
@@ -1064,7 +1064,7 @@ mod tests {
     }
 
     #[test]
-    fn provider_configuration_uses_codex_ultra_fallback_order() {
+    fn provider_configuration_uses_host_ultra_fallback_order() {
         let selection = RuntimeModelSelection {
             provider: "openai".to_string(),
             model: "gpt-5.6-sol".to_string(),

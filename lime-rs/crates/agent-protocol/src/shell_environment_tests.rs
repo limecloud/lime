@@ -53,7 +53,7 @@ fn none_inheritance_keeps_only_explicit_allowed_values() {
 }
 
 #[test]
-fn all_and_core_inheritance_match_codex_defaults() {
+fn all_and_core_inheritance_match_host_defaults() {
     let vars = [
         ("PATH".into(), "path".into()),
         ("CUSTOM_KEY".into(), "value".into()),
@@ -125,7 +125,7 @@ fn non_inheritable_environment_is_removed_after_policy_overrides() {
     let vars = [
         ("SAFE".to_string(), "inherited".to_string()),
         (
-            "codex_guardian_decisions_api_key".into(),
+            "lime_guardian_decisions_api_key".into(),
             "synthetic-inherited-key".into(),
         ),
         ("node_repl_auth_token".into(), "inherited-token".into()),
@@ -148,7 +148,7 @@ fn non_inheritable_environment_is_removed_after_policy_overrides() {
         r#set: HashMap::from([
             ("SAFE".to_string(), "override".to_string()),
             (
-                "CODEX_GUARDIAN_DECISIONS_API_KEY".into(),
+                "LIME_GUARDIAN_DECISIONS_API_KEY".into(),
                 "synthetic-override-key".into(),
             ),
             ("Node_Repl_Auth_Token".into(), "configured-token".into()),
@@ -176,10 +176,7 @@ fn command_scrubber_removes_names_from_real_child_environment() {
         let output = Command::new(std::env::current_exe().expect("locate current test binary"))
             .args([TEST_NAME, "--exact", "--nocapture"])
             .env(CHILD_MODE_ENV_VAR, "1")
-            .env(
-                "Codex_Guardian_Decisions_Api_Key",
-                "synthetic-inherited-key",
-            )
+            .env("Lime_Guardian_Decisions_Api_Key", "synthetic-inherited-key")
             .env("Node_Repl_Auth_Token", "inherited-token")
             .env("OpenAI_Federation_Rule_Id", "inherited-rule")
             .env(
@@ -206,7 +203,7 @@ fn command_scrubber_removes_names_from_real_child_environment() {
             LIME_EXEC_SERVER_NOISE_AUTH_TOKEN_ENV_VAR,
             "configured-noise-token",
         )
-        .env("CODEX_GUARDIAN_DECISIONS_API_KEY", "synthetic-override-key")
+        .env("LIME_GUARDIAN_DECISIONS_API_KEY", "synthetic-override-key")
         .env("SAFE", "value");
     scrub_non_inheritable_env_vars(&mut command);
     let output = command.output().expect("read child environment");

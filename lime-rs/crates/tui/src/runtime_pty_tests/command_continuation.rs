@@ -138,5 +138,7 @@ fn real_pty_projects_session_command_exit_after_model_turn() {
     );
     cursor_style::assert_default_restored(&trace);
     terminal_title::assert_cleared_on_exit(&trace);
-    eprintln!("COMMAND_AUTONOMOUS_TUI_GATE_B_OK keyboard=actual alternate=restored termios=restored output=visible backend=runtime");
+    eprintln!(
+        "COMMAND_AUTONOMOUS_TUI_GATE_B_OK keyboard=actual alternate=restored termios=restored output=visible backend=runtime"
+    );
 }

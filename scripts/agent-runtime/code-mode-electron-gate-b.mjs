@@ -16,6 +16,7 @@ import {
 } from "../electron/mcp-config-fixture-smoke.mjs";
 import { resolveElectronAppServerRuntimeEnv } from "../lib/electron-app-server-assets.mjs";
 import { resolveDevAppServerBinary } from "../lib/electron-dev-sidecar.mjs";
+import { startInvokeTraceEvidenceCollector } from "../lib/chat-fixture/invoke-trace.mjs";
 import {
   bindGuiWorkspaceAndModelPreferences,
   clearInvokeBuffers,
@@ -233,10 +234,21 @@ async function submitTurnFromGui(page, input, options) {
     },
     { timeout: options.timeoutMs },
   );
-  const send = input
-    .locator('xpath=ancestor::*[@data-testid="inputbar-core-container"]')
-    .locator('[data-testid="send-btn"]');
-  await send.click({ timeout: options.timeoutMs });
+  await input.press("Enter", { timeout: options.timeoutMs });
+  await page.waitForFunction(
+    withComposerEditorDom((sessionId) => {
+      const editor = document.querySelector(
+        `[data-testid="composer-editor"][role="textbox"][data-session-id="${sessionId}"]`,
+      );
+      return (
+        editor instanceof HTMLElement &&
+        readComposerEditorTextDom(editor) === ""
+      );
+    }),
+    await input.getAttribute("data-session-id"),
+    { timeout: options.timeoutMs },
+  );
+  return { trigger: "Enter", acceptedInputCleared: true };
 }
 
 async function readThread(page, threadId, requestLog) {
@@ -372,9 +384,9 @@ async function readVisibleState(page, options, sessionId) {
   };
 }
 
-async function readInvokeDiagnostics(page) {
+async function readInvokeDiagnostics(page, collectedTraces = []) {
   return await page.evaluate(
-    ({ errorKey, traceKey }) => {
+    ({ errorKey, traceKey, collectedTraces }) => {
       const readArray = (key) => {
         try {
           const value = JSON.parse(localStorage.getItem(key) || "[]");
@@ -383,7 +395,7 @@ async function readInvokeDiagnostics(page) {
           return [];
         }
       };
-      const traces = readArray(traceKey);
+      const traces = [...collectedTraces, ...readArray(traceKey)];
       const calls = traces.flatMap((entry) => {
         if (entry?.command !== "app_server_handle_json_lines") return [];
         const lines = Array.isArray(entry?.args_preview?.request?.lines)
@@ -419,7 +431,11 @@ async function readInvokeDiagnostics(page) {
         mockFallbackHitCount,
       };
     },
-    { errorKey: INVOKE_ERROR_STORAGE_KEY, traceKey: INVOKE_TRACE_STORAGE_KEY },
+    {
+      errorKey: INVOKE_ERROR_STORAGE_KEY,
+      traceKey: INVOKE_TRACE_STORAGE_KEY,
+      collectedTraces,
+    },
   );
 }
 
@@ -702,6 +718,7 @@ export async function runGateB(options) {
   let terminal = null;
   let codeCellTrace = null;
   let evidence = null;
+  let invokeTraceCollector = null;
   try {
     logStage("fixture");
     fixture = await startCodeModeFixture();
@@ -737,7 +754,10 @@ export async function runGateB(options) {
       sessionId: identity.sessionId,
       workspaceId: workspace.workspaceId,
     });
-    await submitTurnFromGui(page, input, options);
+    invokeTraceCollector = startInvokeTraceEvidenceCollector(page, {
+      intervalMs: options.intervalMs,
+    });
+    const submission = await submitTurnFromGui(page, input, options);
     terminal = await waitForTerminalThread(
       page,
       options,
@@ -753,7 +773,9 @@ export async function runGateB(options) {
     codeCellTrace = await readCodeCellTrace(page, identity, requestLog);
     stage = "visible";
     const visible = await readVisibleState(page, options, identity.sessionId);
-    const diagnostics = await readInvokeDiagnostics(page);
+    const collectedTraces = await invokeTraceCollector.stop();
+    invokeTraceCollector = null;
+    const diagnostics = await readInvokeDiagnostics(page, collectedTraces);
     const provider = summarizeProviderEvidence(fixture);
     const outerExec = readOuterExecItem(terminal.turn);
     const processEvidence = readCodeModeProcessEvidence({
@@ -830,6 +852,7 @@ export async function runGateB(options) {
         ),
       },
       gui: {
+        submission,
         electron: rendererSnapshot.electron === true,
         activeSessionId: visible.activeSessionId,
         finalAssistantTextVisible: visible.finalAssistantTextVisible,
@@ -857,13 +880,27 @@ export async function runGateB(options) {
     const screenshotPath = options.output.replace(/\.json$/u, "-failure.png");
     let bodyText = null;
     let diagnostics = null;
+    let composerState = null;
     if (page && !page.isClosed()) {
       fs.mkdirSync(path.dirname(options.output), { recursive: true });
       bodyText = await page
         .locator("body")
         .innerText()
         .catch(() => null);
-      diagnostics = await readInvokeDiagnostics(page).catch(() => null);
+      composerState = await page
+        .locator('[data-testid="composer-editor"]')
+        .evaluateAll((editors) =>
+          editors.map((editor) => ({
+            sessionId: editor.getAttribute("data-session-id"),
+            contentEditable: editor.getAttribute("contenteditable"),
+            ariaDisabled: editor.getAttribute("aria-disabled"),
+          })),
+        )
+        .catch(() => null);
+      diagnostics = await readInvokeDiagnostics(
+        page,
+        invokeTraceCollector?.snapshot(),
+      ).catch(() => null);
       await page
         .screenshot({ path: screenshotPath, fullPage: true })
         .catch(() => undefined);
@@ -889,6 +926,7 @@ export async function runGateB(options) {
       gui: {
         ...evidence?.gui,
         bodyText: sanitizeText(bodyText),
+        composerState,
         screenshotPath,
         ...errors,
       },
@@ -896,6 +934,7 @@ export async function runGateB(options) {
     });
     throw error;
   } finally {
+    await invokeTraceCollector?.stop().catch(() => undefined);
     await closeElectronFixture(electronHandle);
     await fixture?.close().catch(() => undefined);
   }

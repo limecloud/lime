@@ -7,6 +7,7 @@ export interface ThreadWorkspaceHeaderViewModel {
   onRename?: (title: string) => Promise<void>;
   onArchive?: () => Promise<void>;
   onFork?: () => Promise<void>;
+  onDelete?: () => Promise<void>;
 }
 
 interface BuildThreadWorkspaceHeaderViewModelParams {
@@ -18,6 +19,7 @@ interface BuildThreadWorkspaceHeaderViewModelParams {
   onRename?: (title: string) => Promise<void>;
   onArchive?: () => Promise<void>;
   onFork?: () => Promise<void>;
+  onDelete?: () => Promise<void>;
   untitledTaskLabel: string;
 }
 
@@ -35,6 +37,7 @@ export function buildThreadWorkspaceHeaderViewModel({
   onRename,
   onArchive,
   onFork,
+  onDelete,
   untitledTaskLabel,
 }: BuildThreadWorkspaceHeaderViewModelParams): ThreadWorkspaceHeaderViewModel | null {
   const normalizedSessionId = normalizeText(sessionId);
@@ -57,5 +60,6 @@ export function buildThreadWorkspaceHeaderViewModel({
     ...(onRename ? { onRename } : {}),
     ...(onArchive ? { onArchive } : {}),
     ...(onFork ? { onFork } : {}),
+    ...(onDelete ? { onDelete } : {}),
   };
 }

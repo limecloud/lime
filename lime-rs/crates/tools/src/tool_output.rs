@@ -1,10 +1,10 @@
+use lime_utils_path_uri::PathUri;
 use protocol::models::AudioReference;
 use protocol::models::FunctionCallOutputBody;
 use protocol::models::FunctionCallOutputContentItem;
 use protocol::models::FunctionCallOutputPayload;
 use protocol::models::ImageReference;
 use protocol::models::ResponseInputItem;
-use lime_utils_path_uri::PathUri;
 use serde_json::Value as JsonValue;
 
 use crate::ToolPayload;

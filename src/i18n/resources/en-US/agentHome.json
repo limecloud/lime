@@ -9,5 +9,6 @@
   "agentChat.home.composer.placeholder": "Ask anything",
   "agentChat.home.composer.pathReferenceFallbackPrompt": "Please review these files or folders.",
   "agentChat.home.title": "What should we build?",
-  "agentChat.home.titleInProject": "What do you want us to build in <projectSelect>{{projectName}}</projectSelect>?"
+  "agentChat.home.titleInProject": "What do you want us to build in <projectSelect>{{projectName}}</projectSelect>?",
+  "agentChat.home.titleInProjectNonGit": "What do you want to do in <projectSelect>{{projectName}}</projectSelect>?"
 }

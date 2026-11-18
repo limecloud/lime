@@ -46,10 +46,18 @@ const GroupContainer = styled.div`
 `;
 
 const GroupHeader = styled.div`
-  padding: 0 8px 4px;
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 8px;
   font-size: 14px;
   font-weight: 500;
-  color: var(--lime-text-muted, hsl(var(--muted-foreground)));
+  line-height: 21px;
+  color: color-mix(
+    in srgb,
+    var(--lime-text-strong, hsl(var(--foreground))) 49.4%,
+    transparent
+  );
 `;
 
 const GroupItems = styled.div`
@@ -69,7 +77,9 @@ const NavItem = styled.button<{ $active: boolean }>`
   background: ${({ $active }) =>
     $active ? "var(--lime-sidebar-active, hsl(var(--accent)))" : "transparent"};
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 430;
+  line-height: 21px;
   color: ${({ $active }) =>
     $active
       ? "var(--lime-sidebar-active-text, var(--lime-text-strong, hsl(var(--foreground))))"

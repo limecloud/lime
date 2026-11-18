@@ -39,7 +39,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_keeps_codex_order_without_owning_models() {
+    fn catalog_keeps_host_order_without_owning_models() {
         let catalog = collaboration_mode_catalog();
         assert_eq!(catalog.len(), 2);
         assert_eq!(catalog[0].mode, Some(ModeKind::Plan));

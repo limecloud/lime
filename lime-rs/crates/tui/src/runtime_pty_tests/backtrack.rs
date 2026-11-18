@@ -148,5 +148,7 @@ pub(super) fn assert_cold_canonical_history(app_server_bin: &Path, cwd: &Path, l
             assert!(resumed.thread.turns.is_empty());
             session.shutdown().await.unwrap();
         });
-    eprintln!("TUI_BACKTRACK_OK thread={thread_id} removed-turn={original_turn} cold-resume=ok new-turns=0");
+    eprintln!(
+        "TUI_BACKTRACK_OK thread={thread_id} removed-turn={original_turn} cold-resume=ok new-turns=0"
+    );
 }

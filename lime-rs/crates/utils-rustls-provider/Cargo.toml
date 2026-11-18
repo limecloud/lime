@@ -1,17 +1,12 @@
 [package]
 name = "utils-rustls-provider"
 version.workspace = true
-edition = "2021"
+edition = "2024"
 license.workspace = true
-authors.workspace = true
-repository.workspace = true
-description = "Process-wide rustls crypto provider installation."
 
 [lib]
-name = "utils_rustls_provider"
-path = "src/lib.rs"
-doctest = false
 test = false
+doctest = false
 
 [dependencies]
-rustls = { version = "0.23.46", default-features = false, features = ["aws_lc_rs", "tls12", "std"] }
+rustls = { version = "0.23.46", default-features = false, features = ["aws_lc_rs", "std"] }

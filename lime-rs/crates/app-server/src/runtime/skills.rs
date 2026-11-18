@@ -425,7 +425,7 @@ mod skills_list_tests {
     use super::*;
 
     #[test]
-    fn agent_scopes_lower_to_codex_scopes() {
+    fn agent_scopes_lower_to_host_scopes() {
         assert_eq!(skill_scope(AgentSkillScope::Project), V2SkillScope::Repo);
         assert_eq!(skill_scope(AgentSkillScope::User), V2SkillScope::User);
         assert_eq!(skill_scope(AgentSkillScope::App), V2SkillScope::System);

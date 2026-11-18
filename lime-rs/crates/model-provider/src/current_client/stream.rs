@@ -2,10 +2,10 @@ use super::{CurrentProviderCustomToolCall, CurrentProviderError, CurrentProvider
 use agent_protocol::{anthropic, openai};
 use async_stream::try_stream;
 use futures::{Stream, StreamExt};
-use reqwest::Response;
-use runtime_core::{
+use model_routing_core::{
     CanonicalLlmEvent as LlmEvent, FailureClassification, FinishReason, ModelVerification, Usage,
 };
+use reqwest::Response;
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::time::Duration;

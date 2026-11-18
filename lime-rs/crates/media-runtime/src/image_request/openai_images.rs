@@ -1,5 +1,5 @@
 use model_provider::lowering::build_openai_images_generation_body;
-use runtime_core::{CanonicalRequest, ContentPart};
+use model_routing_core::{CanonicalRequest, ContentPart};
 use serde_json::{json, Value};
 
 use crate::{ImageGenerationRequestBodyFormat, ImageGenerationRunnerConfig, TaskErrorRecord};

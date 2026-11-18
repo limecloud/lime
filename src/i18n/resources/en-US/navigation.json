@@ -465,5 +465,8 @@
   "commands.newProject.title": "New project",
   "commands.newProject.description": "Create a new project in Lime",
   "commands.findInThread.title": "Find in chat",
-  "commands.findInThread.description": "Find text in the current chat"
+  "commands.findInThread.description": "Find text in the current chat",
+  "navigation.sidebar.conversations.menu.moveToProject": "Move to project",
+  "navigation.sidebar.conversations.menu.removeFromProject": "Remove from project",
+  "navigation.sidebar.conversations.menu.openInNewWindow": "Open in new window"
 }

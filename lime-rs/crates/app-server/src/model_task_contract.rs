@@ -1,7 +1,7 @@
 use app_server_protocol::{
     CapabilitySnapshot, ModelTaskRequest, ResolvedModelRoute, RouteFailure, RouteFailureCategory,
 };
-pub(crate) use runtime_core::{
+pub(crate) use model_routing_core::{
     build_model_task_request, capability_snapshot_from_model_capabilities,
     model_task_request_value, route_capability_gap, ModelTaskRequestInput,
 };

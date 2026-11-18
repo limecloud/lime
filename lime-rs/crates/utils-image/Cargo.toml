@@ -1,26 +1,17 @@
 [package]
 name = "utils-image"
 version.workspace = true
-edition = "2021"
+edition = "2024"
 license.workspace = true
-authors.workspace = true
-repository.workspace = true
-description = "Prompt image loading and resizing shared by Lime tools."
 
 [lib]
-name = "utils_image"
-path = "src/lib.rs"
 doctest = false
 
 [dependencies]
 base64.workspace = true
-image = { version = "0.25", features = ["jpeg", "png", "gif", "webp"] }
-mime_guess = "2"
-png = { version = "0.18", features = ["zlib-rs"] }
+image = { version = "^0.25.9", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
+mime_guess = "2.0.5"
+png = { version = "0.18.0", features = ["zlib-rs"] }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["fs", "rt", "rt-multi-thread", "macros"] }
 utils-cache = { path = "../utils-cache" }
-
-[dev-dependencies]
-pretty_assertions.workspace = true
-tempfile.workspace = true

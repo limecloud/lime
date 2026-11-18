@@ -283,7 +283,11 @@ fn project_turn(turn: canonical::Turn) -> Result<v2::Turn, JsonRpcError> {
             ),
             additional_details: error.details,
         }),
-        started_at: turn.started_at_ms.map(millis_to_seconds),
+        // Accepted executions can finish without a separate turn.started event.
+        // Keep their timing anchored to this Turn rather than the Thread header.
+        started_at: Some(millis_to_seconds(
+            turn.started_at_ms.unwrap_or(turn.created_at_ms),
+        )),
         completed_at: turn.completed_at_ms.map(millis_to_seconds),
         duration_ms: turn.duration_ms.map(saturating_i64),
     })
@@ -570,3 +574,6 @@ mod tests;
 
 #[cfg(test)]
 mod command_tests;
+
+#[cfg(test)]
+mod timing_tests;

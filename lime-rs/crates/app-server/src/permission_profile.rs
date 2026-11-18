@@ -389,7 +389,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn builtin_catalog_keeps_codex_order_and_runtime_mapping() {
+    fn builtin_catalog_keeps_host_order_and_runtime_mapping() {
         let catalog = builtin_permission_profiles();
         assert_eq!(
             catalog

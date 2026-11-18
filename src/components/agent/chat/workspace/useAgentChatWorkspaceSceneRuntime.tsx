@@ -70,7 +70,7 @@ export function useAgentChatWorkspaceSceneRuntime({
     setAccessMode, messages, setChatMessages, currentTurnId, turns, todoItems,
     threadRead, threadGoal, threadGoalError, isThreadGoalLoading, executionRuntime, sessionWorkingDir, isSending, stopSending, replayPendingAction,
     deleteMessage, editMessage, handlePermissionResponse, submittedActionsInFlight, sessionHistoryWindow,
-    isAutoRestoringSession, isSessionHydrating, sessionId, ensureSession, getThreadIdForSubmit, originalSwitchTopic, loadFullSessionHistory, refreshSessionReadModel, renameTopic, archiveTopic, forkTopic, workspacePathMissing, workspaceHealthError,
+    isAutoRestoringSession, isSessionHydrating, sessionId, ensureSession, getThreadIdForSubmit, originalSwitchTopic, loadFullSessionHistory, refreshSessionReadModel, renameTopic, archiveTopic, forkTopic, deleteTopic, workspacePathMissing, workspaceHealthError,
     combinedSkillsLoading, expertPanelRequestMetadata, expertPanelRuntimeKey, expertSkillRefsOverride, expertWorkspaceSkillRuntimeEnableBindings, expertWorkspaceSkillRuntimeEnableRefs, handleEnableExpertWorkspaceSkillRuntime, handleExpertSkillRefsChange,
     handlePluginSuggestionsNeeded, handleThreadExpertProfileSwitch, workspacePluginInputSuggestions, workspacePluginSuggestionsError, workspacePluginSuggestionsLoading, workspaceSkillBindings, topicById, effectiveChatToolPreferences, canonicalChildren,
     currentSessionTitle, handleStopSending, handleOpenSubagentSession, currentImageWorkbenchState, imageWorkbenchSessionKey, updateCurrentImageWorkbenchState, artifactDisplayState,
@@ -591,6 +591,12 @@ export function useAgentChatWorkspaceSceneRuntime({
                 if (forkedSessionId) {
                   await commandRuntime.handleOpenTaskTopic(forkedSessionId);
                 }
+              }
+            : undefined,
+          onDelete: sceneSessionId
+            ? async () => {
+                await deleteTopic(sceneSessionId);
+                handleBackHome();
               }
             : undefined,
           untitledTaskLabel,

@@ -1768,7 +1768,7 @@ outer JSON-RPC id 只负责 App Server 到客户端的响应关联，domain toke
 | `agent-protocol` | Thread/Turn/Item、RuntimeEvent、稳定 runtime DTO。                                                                                |
 | `agent-runtime`  | 回合生命周期、action-required、队列、取消、stream 和 runtime scope。                                                              |
 | `agent`          | current provider turn、session/store adapter、runtime facade、业务级 agent 编排。                                                 |
-| `runtime-core`   | 模型路由、上下文 fragment、message/media part、跨 provider 的运行时模型。                                                         |
+| `model-routing-core`   | 模型路由、上下文 fragment、message/media part、跨 provider 的运行时模型。                                                         |
 | `thread-store`   | Codex raw canonical rollout item append、独立 metadata patch、Thread/Turn/Item 的存储、检索、分页、历史、graph/identity/mailbox。 |
 
 会话提交的唯一执行 owner 是 `agent-runtime::session_loop`：每个 session 只有一个串行 actor，FIFO task、regular/review/compact kind、replace/interrupt/shutdown、迟到 completion 防护和 steer/mailbox 分流均在此收口。所有 actor 命令先进入统一 operation envelope；envelope 使用 UUIDv7 identity，并携带可选 client user message identity 与 W3C trace carrier，首次启动和 FIFO promote 必须把同一份不可变 metadata 交给 task context。普通用户输入只通过 typed `UserInput` operation 进入该队列：active regular task 存在时原子 steer，否则启动或排队 candidate task，同一份输入必须成为新 task 的 initial input；App Server 只能消费 actor 返回的 `Submitted/Steered` receipt，不能把 read model 的预判当成调度事实。Review、Compact、ThreadSettings、SetMemoryMode、RefreshMcp、ReloadConfig 与 RunShell 使用各自的 typed task operation，并校验 operation 与 task kind 一致；Approval、UserInput、Permission、DynamicTool 与 MCP elicitation response 使用五类独立 response operation，禁止恢复通用 response operation。durable inter-agent append 成功后，App Server 只向已经存在的 recipient actor 提交 typed `InterAgentCommunication` envelope，保留 message/root/sender/recipient/source-turn identity、kind、result status 与 delivery mode；actor 只发布 durable activity，不复制 store payload，也不得为了通知创建空 actor。child terminal result 必须先完成 canonical Turn 与 durable result mailbox append，再由正常 append、durable replay、restart recovery 三条路径统一发布同一 typed activity；通知失败不能回滚 durable record，也不能创建空 actor。provider boundary 只能由 durable loader 把同一记录转换为 typed runtime input，禁止重新解析自由 JSON。steer 与 mailbox activity 通过 typed watch 发布；mailbox pending 使用单调 generation，loader 成功只确认调用前捕获的 generation，失败或并发新 append 必须继续保持 pending。sampling step snapshot 单调增加 step index；pending context rollover 只由下一次 snapshot 原子消费并推进一次 context epoch，显式推进 epoch 也必须清除 pending rollover，禁止在后续 step 重复滚动。RuntimeCore 只负责把 provider/tool 执行、canonical event 持久化和 durable mailbox loader 接到该 actor；QueueOnly mailbox 只有在 provider step 明确打开 mailbox boundary 后才 append + ack，不能由 AgentControl 或 GUI 另起活动回合旁路。AgentControl wait 必须先向既有 actor 注册 activity receiver，再读取 pending snapshot；steer、mailbox 和 queued admission 由 actor 的 typed watch 唤醒，不能通过固定间隔扫描 RuntimeCore turns。
@@ -2073,7 +2073,7 @@ action-required/approval 与 ask-user 的 live continuation 归 `agent-runtime` 
 | `model-provider`                                 | provider route、canonical message/content、capability、protocol lowering、HTTP/Responses WebSocket stream 与 normalized provider event。 |
 | `lime-providers`                                 | `dead / deleted / forbidden-to-restore`；只允许历史 evidence 与负向守卫，不得恢复 crate、依赖或兼容调用。                                |
 | `tool-runtime`                                   | tool definition、参数解析、approval/sandbox、执行 dispatch、MCP connection、tool result normalization。                                  |
-| `mcp`                                            | MCP server/client 的领域集成。                                                                                                           |
+| `mcp`                                            | MCP server/client 的领域集成；MCP 配置类型由 `config` owner，core catalog/identity 归 `mcp`；Codex Apps/EMA/Requirements 明确排除。 |
 | `skills`                                         | skill discovery、读取与运行时集成。                                                                                                      |
 | `apply-patch`                                    | patch 语法、streaming parser、seek 与受控落盘执行；唯一 patch owner。                                                                     |
 | `exec-server`                                    | 本地 filesystem/process executor 与 exec-server JSON-RPC；远端 transport 与本地 process 接线仍按迁移进度接入。                            |
@@ -2141,7 +2141,7 @@ provider config + configured-provider readiness + ModelRegistry metadata
 配置 Provider 的地址、凭证、协议和模型即可聊天，GUI 不设手工编辑/保存模型能力的前置流程。
 `services/model_registry_service/model_info.rs` 消费从 Codex `models-manager/models.json` 复制的运行描述字段；
 精确匹配的模型自动提供推理档位、摘要参数和输入模态，外部模型 ID 不因代理域名而变化。
-已配置的未知 Chat 模型由 `runtime-core/model_route::chat_protocol_defaults` 提供 text→text、流式和标准
+已配置的未知 Chat 模型由 `model-routing-core/model_route::chat_protocol_defaults` 提供 text→text、流式和标准
 function tool 默认值；`model/list` 与最终路由复用同一构造函数，来源明确为 `protocol_default`，不把
 `inferred_hint` 伪装成 Provider 明确声明。媒体、任意推理档位、custom tools 和托管服务均不在默认值内；
 canonical/provider-explicit 描述不被默认值覆盖，Provider readiness、协议兼容与工具权限仍由原 owner 校验。
@@ -2371,7 +2371,7 @@ resume replay，也不得触发 reroute。schema、Rust envelope 与 generated T
 
 业务层不得拼 OpenAI、Anthropic 或自定义 provider payload。工具执行只按以下方向流动：
 
-provider-neutral request/event algebra 只能由 `runtime-core::llm_protocol::canonical` 的
+provider-neutral request/event algebra 只能由 `model-routing-core::llm_protocol::canonical` 的
 `Request`、`Message`、`ContentPart` 与 `LlmEvent` 定义。chat/responses/anthropic wire lowering
 由 `model-provider::current_client` 消费该 canonical request；图片与视频只复用
 `model-provider::lowering` 的 canonical media body builder。旧 `LlmRequest`、

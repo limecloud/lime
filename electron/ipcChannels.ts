@@ -10,6 +10,7 @@ export const IPC_GLOBAL_SHORTCUT_COMMAND_CHANNEL =
   "app:global-shortcut:command";
 export const IPC_DEEP_LINK_GET_URLS_CHANNEL = "app:deep-link:get-urls";
 export const IPC_DEEP_LINK_GET_CURRENT_CHANNEL = "app:deep-link:get-current";
+export const IPC_OPEN_SESSION_WINDOW_CHANNEL = "app:session:open-window";
 
 export const ELECTRON_HOST_COMMANDS = [
   "desktop_permissions_read",

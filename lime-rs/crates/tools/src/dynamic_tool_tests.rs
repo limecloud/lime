@@ -1,8 +1,8 @@
 use super::parse_dynamic_tool;
 use crate::JsonSchema;
 use crate::ToolDefinition;
-use protocol::dynamic_tools::DynamicToolFunctionSpec;
 use pretty_assertions::assert_eq;
+use protocol::dynamic_tools::DynamicToolFunctionSpec;
 use std::collections::BTreeMap;
 
 #[test]

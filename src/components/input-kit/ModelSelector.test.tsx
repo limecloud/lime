@@ -1386,4 +1386,29 @@ describe("ModelSelector", () => {
       "尚未配置服务商",
     );
   });
+
+  it("配置服务商时不将点击事件传入导航参数", () => {
+    mockUseConfiguredProviders.mockReturnValue({
+      providers: [],
+      loading: false,
+    });
+    mockUseProviderModels.mockReturnValue({
+      modelIds: [],
+      models: [],
+      loading: false,
+      error: null,
+    });
+    const onManageProviders = vi.fn();
+    const { container } = renderModelSelector({
+      providerType: "",
+      model: "",
+      onManageProviders,
+    });
+    const configure = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("配置"),
+    );
+    expect(configure).toBeTruthy();
+    act(() => configure!.click());
+    expect(onManageProviders).toHaveBeenCalledExactlyOnceWith();
+  });
 });

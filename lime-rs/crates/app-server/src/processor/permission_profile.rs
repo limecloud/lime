@@ -101,7 +101,7 @@ mod tests {
     };
 
     #[test]
-    fn catalog_keeps_codex_builtin_order_and_runtime_mapping() {
+    fn catalog_keeps_host_builtin_order_and_runtime_mapping() {
         let policy = crate::permission_profile::permission_profile_policy(
             &lime_core::config::Config::default(),
             None,

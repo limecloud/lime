@@ -11,14 +11,14 @@ use exec_server::NoiseChannelPublicKey;
 use futures::SinkExt;
 use futures::StreamExt;
 use prost::Message as ProstMessage;
-use relay_proto::RelayMessageFrame;
 use relay_proto::relay_message_frame;
+use relay_proto::RelayMessageFrame;
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
 use tokio::time::timeout;
-use tokio_tungstenite::WebSocketStream;
 use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::WebSocketStream;
 use wiremock::MockServer;
 
 pub const TEST_TIMEOUT: Duration = Duration::from_secs(30);

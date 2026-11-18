@@ -32,7 +32,7 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn collaboration_mode_uses_codex_wire_shape() {
+    fn collaboration_mode_uses_host_wire_shape() {
         let mode: CollaborationMode = serde_json::from_value(json!({
             "mode": "plan",
             "settings": {

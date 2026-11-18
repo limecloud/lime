@@ -1,7 +1,7 @@
 use super::*;
 
 pub(in crate::current_client) fn responses_message(
-    message: &runtime_core::CanonicalMessage,
+    message: &model_routing_core::CanonicalMessage,
     media_payloads: &BTreeMap<String, String>,
 ) -> Vec<Value> {
     match message.role {
@@ -170,7 +170,7 @@ mod tests {
                     metadata: Default::default(),
                 }
             };
-            let message = runtime_core::CanonicalMessage {
+            let message = model_routing_core::CanonicalMessage {
                 id: None,
                 role: CanonicalRole::Tool,
                 content: vec![part],
@@ -253,7 +253,7 @@ mod tests {
     fn native_items_and_text_keep_their_original_interleaving() {
         let raw = json!({"type":"reasoning","id":"rs_order","summary":[],
             "encrypted_content":"fixture-only"});
-        let message = runtime_core::CanonicalMessage {
+        let message = model_routing_core::CanonicalMessage {
             id: None,
             role: CanonicalRole::Assistant,
             metadata: Default::default(),

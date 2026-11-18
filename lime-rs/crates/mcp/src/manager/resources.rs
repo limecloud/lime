@@ -90,8 +90,19 @@ impl McpClientManager {
                 }
             };
 
-            // 调用 list_all_resources 获取所有资源
-            match service.list_all_resources().await {
+            let service = service.clone();
+            match crate::pagination::collect_paginated("resources/list", None, move |params| {
+                let service = service.clone();
+                async move {
+                    let result = service
+                        .list_resources(params)
+                        .await
+                        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+                    Ok((result.resources, result.next_cursor))
+                }
+            })
+            .await
+            {
                 Ok(resources) => {
                     debug!(
                         server_name = %server_name,
@@ -111,7 +122,6 @@ impl McpClientManager {
                         error = %e,
                         "获取服务器资源列表失败"
                     );
-                    // 继续处理其他服务器，不中断
                 }
             }
         }
@@ -145,7 +155,23 @@ impl McpClientManager {
                 }
             };
 
-            match service.list_all_resource_templates().await {
+            let service = service.clone();
+            match crate::pagination::collect_paginated(
+                "resources/templates/list",
+                None,
+                move |params| {
+                    let service = service.clone();
+                    async move {
+                        let result = service
+                            .list_resource_templates(params)
+                            .await
+                            .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+                        Ok((result.resource_templates, result.next_cursor))
+                    }
+                },
+            )
+            .await
+            {
                 Ok(templates) => {
                     debug!(
                         server_name = %server_name,
@@ -339,7 +365,7 @@ impl McpClientManager {
             &origin.uri,
             Some(serde_json::json!({
                 "threadId": thread_id,
-                "x-codex-turn-metadata": {
+                "x-lime-turn-metadata": {
                     "mcp_request_meta": {
                         "selected_connector_ids": [&origin.connector_id],
                         "link_id": &origin.link_id,

@@ -557,7 +557,7 @@ fn build_seatbelt_access_policy(
         }
         for metadata_name in access_root.protected_metadata_names {
             let regex =
-                seatbelt_protected_metadata_name_regex(&root, &metadata_name).replace('"', "\\\"");
+                seatbelt_protected_metadata_name_regex(&root, &metadata_name).replace('"', "\\x22");
             require_parts.push(format!(r#"(require-not (regex #"{regex}"))"#));
         }
         policy_components.push(format!("(require-all {} )", require_parts.join(" ")));
@@ -620,7 +620,7 @@ fn build_seatbelt_unreadable_glob_policy(unreadable_globs: &[String]) -> String 
                 regex.pop();
                 regex.push_str("(/.*)?$");
             }
-            let regex = regex.replace('"', "\\\"");
+            let regex = regex.replace('"', "\\x22");
             policy_components.push(format!(r#"(deny file-read* (regex #"{regex}"))"#));
             policy_components.push(format!(r#"(deny file-write* (regex #"{regex}"))"#));
             if global_literal_basename {
@@ -633,7 +633,7 @@ fn build_seatbelt_unreadable_glob_policy(unreadable_globs: &[String]) -> String 
                 else {
                     continue;
                 };
-                let regex = regex.replace('"', "\\\"");
+                let regex = regex.replace('"', "\\x22");
                 policy_components.push(format!(
                     r#"(deny file-write-unlink (require-all (vnode-type DIRECTORY) (regex #"{regex}")))"#
                 ));

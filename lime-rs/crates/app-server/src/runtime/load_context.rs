@@ -121,14 +121,15 @@ impl RuntimeCore {
         };
         let repair =
             ProjectionRepair::new((**event_log_writer).clone(), (**projection_store).clone());
-        let Some((projection, events)) = repair
-            .read_repaired_session(
-                &params.session_id,
-                params
-                    .history_limit
-                    .map(|_| ProjectionReadWindow::from_read_params(params)),
-            )
-            .map_err(RuntimeCoreError::Backend)?
+        let session_id = params.session_id.clone();
+        let window = params
+            .history_limit
+            .map(|_| ProjectionReadWindow::from_read_params(params));
+        let Some((projection, events)) =
+            tokio::task::spawn_blocking(move || repair.read_repaired_session(&session_id, window))
+                .await
+                .map_err(|error| RuntimeCoreError::Backend(error.to_string()))?
+                .map_err(RuntimeCoreError::Backend)?
         else {
             return Ok(None);
         };

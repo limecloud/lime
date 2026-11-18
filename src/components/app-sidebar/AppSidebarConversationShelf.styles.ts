@@ -22,7 +22,7 @@ export const ConversationSectionHeader = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 24px;
+  min-height: 25px;
   padding: 0 4px;
   color: var(--sidebar-muted);
 `;
@@ -47,7 +47,7 @@ export const ConversationSectionToggle = styled.button`
   align-items: center;
   gap: 4px;
   min-width: 0;
-  min-height: 28px;
+  min-height: 25px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -78,14 +78,14 @@ export const ConversationSectionTitle = styled.h2`
   padding: 0;
   margin: 0;
   color: inherit;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
 `;
 
 export const ConversationActionButton = styled.button`
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border: none;
   border-radius: 9px;
   display: inline-flex;

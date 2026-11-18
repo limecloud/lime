@@ -4,10 +4,10 @@ use std::time::Duration;
 
 use anyhow::Result;
 use exec_server::HttpClient;
-use protocol::protocol::McpAuthStatus;
 use futures::FutureExt;
 use http::HeaderMap;
 use http::header::AUTHORIZATION;
+use protocol::protocol::McpAuthStatus;
 use rmcp::transport::AuthorizationManager;
 use rmcp::transport::auth::AuthError;
 use tracing::debug;
@@ -318,9 +318,9 @@ mod tests {
     use exec_server::HttpRequestResponse;
     use exec_server::HttpResponseBodyStream;
     use exec_server::RouteAwareHttpClient;
+    use futures::future::BoxFuture;
     use http_client::HttpClientFactory;
     use http_client::OutboundProxyPolicy;
-    use futures::future::BoxFuture;
     use pretty_assertions::assert_eq;
     use serial_test::serial;
     use std::collections::HashMap;

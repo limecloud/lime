@@ -313,6 +313,216 @@ pub struct McpServerConfig {
     pub tools: HashMap<String, McpServerToolConfig>,
 }
 
+impl Default for McpServerConfig {
+    fn default() -> Self {
+        Self {
+            transport: McpServerTransportConfig::Stdio {
+                command: String::new(),
+                args: Vec::new(),
+                env: None,
+                env_vars: Vec::new(),
+                cwd: None,
+            },
+            auth: McpServerAuth::default(),
+            environment_id: DEFAULT_MCP_SERVER_ENVIRONMENT_ID.to_string(),
+            enabled: false,
+            required: false,
+            startup_readiness: McpStartupReadiness::default(),
+            supports_parallel_tool_calls: false,
+            tool_input_schema_max_bytes: None,
+            omit_tools_from: None,
+            disabled_reason: None,
+            startup_timeout_sec: Some(Duration::from_secs(30)),
+            tool_timeout_sec: None,
+            default_tools_approval_mode: None,
+            enabled_tools: None,
+            disabled_tools: None,
+            scopes: None,
+            oauth: None,
+            oauth_resource: None,
+            tools: HashMap::new(),
+        }
+    }
+}
+
+impl Default for McpServerTransportConfig {
+    fn default() -> Self {
+        Self::Stdio {
+            command: String::new(),
+            args: Vec::new(),
+            env: None,
+            env_vars: Vec::new(),
+            cwd: None,
+        }
+    }
+}
+
+impl McpServerConfig {
+    pub fn command(&self) -> &str {
+        match &self.transport {
+            McpServerTransportConfig::Stdio { command, .. } => command,
+            McpServerTransportConfig::StreamableHttp { .. } => "",
+        }
+    }
+
+    pub fn args(&self) -> &[String] {
+        match &self.transport {
+            McpServerTransportConfig::Stdio { args, .. } => args,
+            McpServerTransportConfig::StreamableHttp { .. } => &[],
+        }
+    }
+
+    pub fn env(&self) -> &HashMap<String, String> {
+        static EMPTY: std::sync::OnceLock<HashMap<String, String>> = std::sync::OnceLock::new();
+        match &self.transport {
+            McpServerTransportConfig::Stdio { env, .. } => env
+                .as_ref()
+                .unwrap_or_else(|| EMPTY.get_or_init(HashMap::new)),
+            McpServerTransportConfig::StreamableHttp { .. } => EMPTY.get_or_init(HashMap::new),
+        }
+    }
+
+    pub fn env_vars(&self) -> Vec<String> {
+        match &self.transport {
+            McpServerTransportConfig::Stdio { env_vars, .. } => {
+                env_vars.iter().map(|var| var.name().to_string()).collect()
+            }
+            McpServerTransportConfig::StreamableHttp { .. } => Vec::new(),
+        }
+    }
+
+    pub fn transport_kind(&self) -> &'static str {
+        match &self.transport {
+            McpServerTransportConfig::Stdio { .. } => "stdio",
+            McpServerTransportConfig::StreamableHttp { .. } => "streamable_http",
+        }
+    }
+
+    pub fn sanitized_cwd(&self) -> Option<std::path::PathBuf> {
+        let cwd = match &self.transport {
+            McpServerTransportConfig::Stdio { cwd, .. } => cwd.as_ref()?.as_str(),
+            McpServerTransportConfig::StreamableHttp { .. } => return None,
+        };
+        let cleaned = cwd.split('\0').next().unwrap_or_default().trim();
+        if cleaned.is_empty() {
+            return None;
+        }
+        if cleaned == "~" {
+            return Some(dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from(cleaned)));
+        }
+        if cleaned.starts_with("~/") || cleaned.starts_with("~\\") {
+            if let Some(home) = dirs::home_dir() {
+                return Some(home.join(&cleaned[2..]));
+            }
+        }
+        Some(std::path::PathBuf::from(cleaned))
+    }
+
+    pub fn startup_timeout_secs(&self) -> u64 {
+        self.startup_timeout_sec
+            .map(|duration| duration.as_secs())
+            .unwrap_or(30)
+            .clamp(1, 300)
+    }
+
+    pub fn tool_timeout_secs(&self) -> u64 {
+        self.tool_timeout_sec
+            .or(self.startup_timeout_sec)
+            .map(|duration| duration.as_secs())
+            .unwrap_or(self.startup_timeout_secs())
+            .clamp(1, 300)
+    }
+
+    pub fn enabled_tool_set(&self) -> Option<std::collections::HashSet<String>> {
+        self.enabled_tools.as_ref().map(|tools| {
+            tools
+                .iter()
+                .map(|tool| tool.trim().to_ascii_lowercase())
+                .filter(|tool| !tool.is_empty())
+                .collect()
+        })
+    }
+
+    pub fn disabled_tool_set(&self) -> std::collections::HashSet<String> {
+        self.disabled_tools
+            .as_ref()
+            .map(|tools| {
+                tools
+                    .iter()
+                    .map(|tool| tool.trim().to_ascii_lowercase())
+                    .filter(|tool| !tool.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    pub fn tool_is_enabled(&self, tool_name: &str) -> bool {
+        let normalized = tool_name.trim().to_ascii_lowercase();
+        if normalized.is_empty() {
+            return false;
+        }
+        if let Some(enabled_tools) = self.enabled_tool_set() {
+            if !enabled_tools.contains(&normalized) {
+                return false;
+            }
+        }
+        !self.disabled_tool_set().contains(&normalized)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.environment_id.trim().is_empty() {
+            return Err("environment_id must be a non-empty string".to_string());
+        }
+        if !self.enabled {
+            return Ok(());
+        }
+        if let Some(timeout) = self.startup_timeout_sec {
+            let secs = timeout.as_secs();
+            if secs == 0 || secs > 300 {
+                return Err("startup_timeout must be between 1 and 300 seconds".to_string());
+            }
+        }
+        if let Some(timeout) = self.tool_timeout_sec {
+            let secs = timeout.as_secs();
+            if secs == 0 || secs > 300 {
+                return Err("tool_timeout must be between 1 and 300 seconds".to_string());
+            }
+        }
+        match &self.transport {
+            McpServerTransportConfig::Stdio {
+                command, env_vars, ..
+            } => {
+                if command.trim().is_empty() {
+                    return Err("stdio MCP requires command".to_string());
+                }
+                if env_vars.iter().any(|name| {
+                    let name = name.name();
+                    name.trim().is_empty() || name.contains(['=', '\0'])
+                }) {
+                    return Err(
+                        "env_vars must contain valid local environment variable names".to_string(),
+                    );
+                }
+                if self.oauth.is_some() || self.oauth_resource.is_some() {
+                    return Err(
+                        "OAuth MCP settings are only supported for streamable_http transport"
+                            .to_string(),
+                    );
+                }
+                Ok(())
+            }
+            McpServerTransportConfig::StreamableHttp { url, .. } => {
+                if !(url.starts_with("http://") || url.starts_with("https://")) {
+                    return Err(
+                        "streamable_http MCP url must start with http:// or https://".to_string(),
+                    );
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
 impl McpServerConfig {
     /// Disables this registration without losing an existing explicit disable.
     pub fn disable_by_requirements(&mut self, source: RequirementSource) {

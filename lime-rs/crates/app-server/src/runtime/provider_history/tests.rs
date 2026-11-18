@@ -327,7 +327,7 @@ fn rollout_budget_reminder_is_restored_only_for_future_turns() {
 }
 
 #[test]
-fn completed_route_switch_appends_codex_developer_context_after_durable_history() {
+fn completed_route_switch_appends_host_developer_context_after_durable_history() {
     let mut stored = stored_with_events(vec![
         turn_event(
             1,

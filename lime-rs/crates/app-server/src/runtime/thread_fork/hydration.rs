@@ -18,13 +18,15 @@ impl RuntimeCore {
                 return Ok(());
             }
         }
-        let rollout_events = self
-            .projection_store
-            .as_deref()
-            .map(|store| store.runtime_events_for_thread_sync(&thread.thread_id))
-            .transpose()
-            .map_err(RuntimeCoreError::Backend)?
-            .flatten();
+        let rollout_events = if let Some(store) = self.projection_store.clone() {
+            let thread_id = thread.thread_id.clone();
+            tokio::task::spawn_blocking(move || store.runtime_events_for_thread_sync(&thread_id))
+                .await
+                .map_err(|error| RuntimeCoreError::Backend(error.to_string()))?
+                .map_err(RuntimeCoreError::Backend)?
+        } else {
+            None
+        };
         if let Some(events) = rollout_events.filter(|events| !events.is_empty()) {
             let canonical;
             let thread = if thread.turns_view == ThreadTurnsView::Full {

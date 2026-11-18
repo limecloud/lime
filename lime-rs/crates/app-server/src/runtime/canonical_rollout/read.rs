@@ -33,7 +33,25 @@ impl RolloutStore {
         let (path, reader) = compression::open_rollout_line_reader(&path)?;
         // Explicit reads accept a copied rollout outside agent home, like Codex. Validate
         // its recorded identity and digest; the caller's filename is not authoritative.
-        let scan = scan_rollout_reader(reader, &path)?;
+        let mut builder = None;
+        let mut runtime_events = Vec::new();
+        // Apply validated increments as they are read, releasing old Turn snapshots
+        // instead of retaining the entire historical sequence alongside the result.
+        let scan = scan::scan_rollout_reader_with_history(reader, &path, |thread, record| {
+            let previous = builder.take().unwrap_or_else(|| {
+                ThreadHistoryBuilder::for_thread(
+                    thread.session_id.clone(),
+                    thread.thread_id.clone(),
+                )
+            });
+            builder = Some(
+                previous
+                    .replay_change_set(record.changes)
+                    .map_err(|error| error.to_string())?,
+            );
+            runtime_events.extend(record.runtime_events);
+            Ok(())
+        })?;
         validate_scan_identity(
             &scan,
             Path::new(&scan.rollout_path),
@@ -47,15 +65,9 @@ impl RolloutStore {
         let mut thread = scan.initial_thread;
         thread.recency_at_ms.get_or_insert(scan.recency_at_ms);
         thread.updated_at_ms = lifecycle::file_updated_at_ms(&path)?;
-        let mut builder =
-            ThreadHistoryBuilder::for_thread(thread.session_id.clone(), thread.thread_id.clone());
-        let mut runtime_events = Vec::new();
-        for record in scan.history {
-            runtime_events.extend(record.runtime_events);
-            builder
-                .apply_change_set(record.changes)
-                .map_err(|error| error.to_string())?;
-        }
+        let builder = builder.unwrap_or_else(|| {
+            ThreadHistoryBuilder::for_thread(thread.session_id.clone(), thread.thread_id.clone())
+        });
         thread.turns = builder.turns().to_vec();
         for turn in &mut thread.turns {
             turn.items_view = agent_protocol::TurnItemsView::Full;

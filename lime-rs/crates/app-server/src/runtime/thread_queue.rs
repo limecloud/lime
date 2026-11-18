@@ -89,6 +89,30 @@ impl RuntimeCore {
         &self,
         thread_id: &str,
     ) -> Result<Vec<ThreadQueuedSubmission>, RuntimeCoreError> {
+        let thread = self.read_queue_thread(thread_id).await?;
+        if self.loaded_session_id_for_thread(thread_id).is_none() {
+            let canonical = self
+                .canonical_thread_store()?
+                .read_thread(thread_store::ReadThreadParams {
+                    thread_id: thread.thread_id.clone(),
+                    include_archived: false,
+                    turns_view: agent_protocol::ThreadTurnsView::Summary,
+                })
+                .await
+                .map_err(|error| RuntimeCoreError::Backend(error.to_string()))?
+                .ok_or_else(|| {
+                    RuntimeCoreError::Backend(format!("thread not found: {thread_id}"))
+                })?;
+            if !canonical
+                .turns
+                .iter()
+                .any(|turn| matches!(turn.queue, agent_protocol::TurnQueueState::Queued { .. }))
+            {
+                // An empty queue is a read-model fact; listing it must not hydrate
+                // the complete transcript or load the session into the runtime.
+                return Ok(Vec::new());
+            }
+        }
         let session_id = self.ensure_queue_thread_hydrated(thread_id).await?;
         let state = self
             .state
@@ -363,6 +387,16 @@ impl RuntimeCore {
         &self,
         thread_id: &str,
     ) -> Result<String, RuntimeCoreError> {
+        let thread = self.read_queue_thread(thread_id).await?;
+        let session_id = thread.session_id.to_string();
+        self.ensure_current_session_hydrated(&session_id).await?;
+        Ok(session_id)
+    }
+
+    async fn read_queue_thread(
+        &self,
+        thread_id: &str,
+    ) -> Result<agent_protocol::Thread, RuntimeCoreError> {
         let thread_id = required_value(thread_id.to_string(), "thread queue requires threadId")?;
         let thread = self
             .read_thread(app_server_protocol::ThreadReadParams {
@@ -386,9 +420,7 @@ impl RuntimeCore {
                 "ephemeral thread does not support queued submissions: {thread_id}"
             )));
         }
-        let session_id = thread.session_id.to_string();
-        self.ensure_current_session_hydrated(&session_id).await?;
-        Ok(session_id)
+        Ok(thread)
     }
 
     fn rollback_queue_add(&self, session_id: &str, queued_submission_id: &str) {

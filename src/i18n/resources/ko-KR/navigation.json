@@ -465,5 +465,8 @@
   "commands.newProject.title": "새 프로젝트",
   "commands.newProject.description": "Lime에서 새 프로젝트 만들기",
   "commands.findInThread.title": "채팅에서 찾기",
-  "commands.findInThread.description": "현재 채팅에서 텍스트 찾기"
+  "commands.findInThread.description": "현재 채팅에서 텍스트 찾기",
+  "navigation.sidebar.conversations.menu.moveToProject": "프로젝트로 이동",
+  "navigation.sidebar.conversations.menu.removeFromProject": "프로젝트에서 제거",
+  "navigation.sidebar.conversations.menu.openInNewWindow": "새 창에서 열기"
 }

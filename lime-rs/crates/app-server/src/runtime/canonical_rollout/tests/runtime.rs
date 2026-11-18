@@ -26,6 +26,45 @@ fn receipt(source: &Thread, sequence: u64) -> AgentEvent {
 }
 
 #[test]
+fn runtime_event_read_preserves_events_and_rejects_corrupt_earlier_history() {
+    let (_temp, store, source, relative, absolute) = setup("streaming-resume");
+    let expected = vec![receipt(&source, 1), receipt(&source, 2)];
+    for event in &expected {
+        store
+            .append_history(
+                &relative,
+                source.session_id.as_str(),
+                source.thread_id.as_str(),
+                &fingerprint('a'),
+                &changes(event.sequence),
+                std::slice::from_ref(event),
+                None,
+            )
+            .unwrap();
+    }
+    assert_eq!(store.read_requested_thread(&relative).unwrap().3, expected);
+    assert_eq!(store.read_requested_thread(&absolute).unwrap().3, expected);
+
+    let contents = fs::read_to_string(&absolute).unwrap();
+    let mut records: Vec<Value> = contents
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    records[1]["content_digest"] = json!("0".repeat(64));
+    let corrupt = records
+        .iter()
+        .map(|record| serde_json::to_string(record).unwrap())
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n";
+    fs::write(&absolute, corrupt).unwrap();
+    assert!(store
+        .read_requested_thread(&relative)
+        .unwrap_err()
+        .contains("invalid rollout history record"));
+}
+
+#[test]
 fn native_receipt_batch_is_idempotent_and_survives_crash_tail_repair() {
     let (_temp, store, source, relative, absolute) = setup("native-receipt");
     let first = receipt(&source, 1);

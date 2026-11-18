@@ -97,6 +97,16 @@ describe("EmptyStateComposerPanel", () => {
     expect(onPaste).toHaveBeenCalledTimes(1);
   });
 
+  it("首页空输入时发送按钮保持可点击，对齐参考空态", () => {
+    const container = renderPanel({ allowEmptySend: true });
+    const sendButton = container.querySelector(
+      '[data-testid="send-btn"]',
+    ) as HTMLButtonElement | null;
+
+    expect(sendButton).toBeTruthy();
+    expect(sendButton?.disabled).toBe(false);
+  });
+
   it("发送时应把本地草稿显式传给首页发送链", async () => {
     const onSend = vi.fn(async () => acceptedSubmission());
     const container = renderPanel({ onSend });

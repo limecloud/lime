@@ -51,20 +51,20 @@ export function PluginCatalogCard({
   return (
     <article
       className={cn(
-        "group flex min-w-0 items-start gap-3 rounded-lg px-2 py-3 ",
+        "group flex min-w-0 items-center gap-3 rounded-2xl border border-[color:var(--lime-surface-border)] p-2 ",
         isSelected
           ? "bg-[color:var(--lime-surface-hover)]"
           : "hover:bg-[color:var(--lime-surface-hover)]",
       )}
       data-testid={`plugin-catalog-card-${plugin.id}`}
     >
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border-[0.5px] border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)]">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border-[0.5px] border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)]">
         {logoUrl ? (
           <img
             src={logoUrl}
             alt=""
             aria-hidden="true"
-            className="h-7 w-7 object-contain"
+            className="h-full w-full object-contain p-px"
           />
         ) : (
           <Puzzle
@@ -106,7 +106,7 @@ export function PluginCatalogCard({
           <>
             <button
               type="button"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-surface)] hover:text-[color:var(--lime-text-strong)]"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-surface)] hover:text-[color:var(--lime-text-strong)]"
               onClick={() => onMenuToggle()}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
@@ -169,7 +169,7 @@ export function PluginCatalogCard({
         ) : (
           <button
             type="button"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--lime-text-strong)] text-[color:var(--lime-surface)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[color:var(--lime-text-strong)] text-[color:var(--lime-surface)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() => {
               onInstall();
             }}

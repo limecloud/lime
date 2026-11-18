@@ -152,7 +152,7 @@ async fn add_exact_target_server_with_disabled_tools(
         .await
         .expect("start exact target client");
     let mut wrapper = super::common::create_test_client(name);
-    wrapper.config.disabled_tools = disabled_tools;
+    wrapper.config.as_mut().unwrap().disabled_tools = Some(disabled_tools);
     wrapper.set_running_service(client);
     manager
         .add_client(name.to_string(), wrapper)
@@ -309,7 +309,7 @@ async fn resource_read_preserves_request_meta_on_the_mcp_wire() {
     let manager = McpClientManager::new(None);
     let (_, _, read_meta, server) = add_exact_target_server(&manager, "server-a").await;
     let expected = serde_json::json!({
-        "x-codex-turn-metadata": {
+        "x-lime-turn-metadata": {
             "mcp_request_meta": {
                 "selected_connector_ids": ["calendar"],
             },
@@ -323,8 +323,8 @@ async fn resource_read_preserves_request_meta_on_the_mcp_wire() {
 
     let read_meta = read_meta.lock().await;
     assert_eq!(
-        read_meta[0].pointer("/x-codex-turn-metadata/mcp_request_meta/selected_connector_ids/0"),
-        expected.pointer("/x-codex-turn-metadata/mcp_request_meta/selected_connector_ids/0")
+        read_meta[0].pointer("/x-lime-turn-metadata/mcp_request_meta/selected_connector_ids/0"),
+        expected.pointer("/x-lime-turn-metadata/mcp_request_meta/selected_connector_ids/0")
     );
     manager
         .stop_server("server-a")
@@ -354,11 +354,11 @@ async fn origin_resource_read_revalidates_current_tool_authority_and_scopes_wire
     let observed = read_meta.lock().await;
     assert_eq!(observed[0]["threadId"], "thread-1");
     assert_eq!(
-        observed[0].pointer("/x-codex-turn-metadata/mcp_request_meta/selected_connector_ids/0"),
+        observed[0].pointer("/x-lime-turn-metadata/mcp_request_meta/selected_connector_ids/0"),
         Some(&serde_json::json!("calendar"))
     );
     assert_eq!(
-        observed[0].pointer("/x-codex-turn-metadata/mcp_request_meta/link_id"),
+        observed[0].pointer("/x-lime-turn-metadata/mcp_request_meta/link_id"),
         Some(&serde_json::json!("link-calendar"))
     );
     drop(observed);

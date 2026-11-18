@@ -3,8 +3,8 @@
 use crate::lowering::{
     build_fal_video_generation_body, build_xai_video_generation_body, ProtocolMappingError,
 };
+use model_routing_core::CanonicalRequest;
 use reqwest::{Client, RequestBuilder, StatusCode};
-use runtime_core::CanonicalRequest;
 use serde_json::{json, Map, Value};
 use std::fmt;
 use std::time::Duration;

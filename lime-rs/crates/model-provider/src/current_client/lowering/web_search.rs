@@ -1,5 +1,5 @@
 use agent_protocol::WebSearchMode;
-use runtime_core::CanonicalToolDefinition;
+use model_routing_core::CanonicalToolDefinition;
 use serde_json::{json, Value};
 
 pub(super) fn visible(tool: &CanonicalToolDefinition, mode: Option<WebSearchMode>) -> bool {

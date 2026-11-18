@@ -1,4 +1,4 @@
-use runtime_core::{
+use model_routing_core::{
     ContextFragmentBudgetPolicy, ContextFragmentBudgetStatus, ContextFragmentEnvelope,
     ContextFragmentInput, ContextFragmentSource, ContextSidecarReference,
 };

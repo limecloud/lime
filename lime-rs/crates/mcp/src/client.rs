@@ -353,7 +353,7 @@ impl ClientHandler for LimeMcpClient {
 /// MCP 客户端包装器
 pub struct McpClientWrapper {
     pub server_name: String,
-    pub config: super::types::McpServerConfig,
+    pub config: Option<super::types::McpServerConfig>,
     pub server_info: Option<super::types::McpServerCapabilities>,
     pub running_service: Option<
         Arc<
@@ -375,7 +375,7 @@ impl McpClientWrapper {
     ) -> Self {
         Self {
             server_name,
-            config,
+            config: Some(config),
             server_info: None,
             running_service: None,
             stdio_process: None,
@@ -556,26 +556,27 @@ mod tests {
                 env_vars: Vec::new(),
                 command: "test-command".to_string(),
                 args: vec!["--arg1".to_string()],
-                env: std::collections::HashMap::new(),
+                env: Some(std::collections::HashMap::new()),
                 cwd: None,
             },
             environment_id: super::super::types::DEFAULT_MCP_SERVER_ENVIRONMENT_ID.to_string(),
             enabled: true,
-            startup_timeout: 30,
-            tool_timeout: None,
+            startup_timeout_sec: Some(std::time::Duration::from_secs(30)),
+            tool_timeout_sec: None,
             enabled_tools: None,
-            disabled_tools: Vec::new(),
+            disabled_tools: None,
             required: false,
             supports_parallel_tool_calls: false,
             scopes: None,
             oauth: None,
             oauth_resource: None,
+            ..Default::default()
         };
 
         let wrapper = McpClientWrapper::new("test-server".to_string(), config, None);
 
         assert_eq!(wrapper.server_name, "test-server");
-        assert_eq!(wrapper.config.command(), "test-command");
+        assert_eq!(wrapper.config.as_ref().unwrap().command(), "test-command");
         assert!(wrapper.server_info.is_none());
         assert!(wrapper.running_service.is_none());
         assert!(wrapper.stdio_process.is_none());

@@ -24,6 +24,25 @@ vi.mock("@/lib/agentDebug", () => ({ logAgentDebug: vi.fn() }));
 const setup = installCoordinatorHarness({ safeInvoke, safeListen });
 
 describe("Composer draft coordination through explicit test-only bridge and real owners", () => {
+  it("deduplicates acceptance reentered by a synchronous editor subscriber", async () => {
+    const h = await setup();
+    await h.coordinator.bindCommitted(a);
+    h.controller.setText("submitted");
+    const capture = h.coordinator.captureSubmission("start");
+    let nested: Promise<boolean> | undefined;
+    const unsubscribe = h.controller.subscribe(() => {
+      if (h.controller.getDocument().text === "")
+        nested = h.coordinator.settleSubmission(capture, accepted());
+    });
+    const cleanup = h.coordinator.settleSubmission(capture, accepted());
+    expect(nested).toBe(cleanup);
+    expect(await cleanup).toBe(true);
+    unsubscribe();
+    expect(h.mutations.map((mutation) => mutation.op)).toEqual([
+      "put",
+      "consume",
+    ]);
+  });
   it("persists a synchronous subscriber edit produced during accepted commit", async () => {
     const h = await setup();
     await h.coordinator.bindCommitted(a);
@@ -66,10 +85,10 @@ describe("Composer draft coordination through explicit test-only bridge and real
     const actual = businessSend();
     const cleanup = h.coordinator.settleSubmission(capture, actual);
     expect(businessSend).toHaveBeenCalledOnce();
-    expect(h.controller.captureDraft().text).toBe("captured");
+    expect(h.controller.captureDraft().text).toBe("");
     h.controller.setText("later edit");
     gate.resolve(null);
-    expect(await cleanup).toBe(false);
+    expect(await cleanup).toBe(true);
     await h.coordinator.idle();
     expect(h.mutations.slice(0, 2).map((mutation) => mutation.op)).toEqual([
       "put",
@@ -85,7 +104,7 @@ describe("Composer draft coordination through explicit test-only bridge and real
     expect(later?.draftId).not.toBe(capture.binding!.identity.draftId);
   });
 
-  it("commits matching UI only after consume applied and creates no empty put", async () => {
+  it("commits matching UI on acceptance and creates no empty put", async () => {
     const h = await setup();
     await h.coordinator.bindCommitted(a);
     h.controller.setText("submitted");
@@ -102,6 +121,48 @@ describe("Composer draft coordination through explicit test-only bridge and real
       "consume",
     ]);
     expect(h.controller.getHistory()[0].text).toBe("submitted");
+  });
+
+  it("keeps an accepted draft cleared while a delayed consume receives older put notifications", async () => {
+    const h = await setup();
+    await h.coordinator.connect();
+    await h.coordinator.bindCommitted(a);
+    h.controller.setText("submitted");
+    const gate = deferred<unknown>();
+    h.intercept((command, args, execute) => {
+      if (
+        command === "persisted_atom_update" &&
+        (args.mutation as { op: string }).op === "consume"
+      )
+        return gate.promise.then(execute);
+      return execute();
+    });
+    const capture = h.coordinator.captureSubmission("start");
+    const cleanup = h.coordinator.settleSubmission(capture, accepted());
+    expect(h.controller.captureDraft().text).toBe("");
+    await vi.advanceTimersByTimeAsync(0);
+    await h.coordinator.refresh();
+    expect((await h.read(a))?.state).toBe("draft");
+    expect(h.controller.captureDraft().text).toBe("");
+    gate.resolve(null);
+    expect(await cleanup).toBe(true);
+    await h.coordinator.refresh();
+    expect(h.controller.captureDraft().text).toBe("");
+    expect(await h.read(a)).toBeNull();
+  });
+
+  it("clears accepted input without an available persistence binding and deduplicates the receipt", async () => {
+    const h = await setup();
+    h.controller.setText("submitted without storage");
+    const capture = h.coordinator.captureSubmission("start");
+    expect(capture.binding).toBeNull();
+    const first = h.coordinator.settleSubmission(capture, accepted());
+    expect(h.controller.captureDraft().text).toBe("");
+    h.controller.setText("new edit");
+    expect(h.coordinator.settleSubmission(capture, accepted())).toBe(first);
+    expect(await first).toBe(true);
+    expect(h.controller.captureDraft().text).toBe("new edit");
+    expect(h.mutations).toHaveLength(0);
   });
 
   it("consumes accepted source after navigation while preserving the new scope document", async () => {
@@ -326,7 +387,7 @@ describe("Composer draft coordination through explicit test-only bridge and real
     expect(await h.read(a)).toBeNull();
   });
 
-  it("retains current input when a later consume has a version conflict", async () => {
+  it("clears accepted local input while preserving a conflicting remote draft", async () => {
     const h = await setup();
     await h.coordinator.bindCommitted(a);
     h.controller.setText("local");
@@ -342,11 +403,13 @@ describe("Composer draft coordination through explicit test-only bridge and real
       draft: token.payload,
     });
     expect(await h.coordinator.settleSubmission(capture, accepted())).toBe(
-      false,
+      true,
     );
-    expect(h.controller.captureDraft().text).toBe("local");
+    expect(h.controller.captureDraft().text).toBe("");
     expect(h.coordinator.getSnapshot().mutation).toBe("conflict");
     expect((await h.read(a))?.scopeVersion).toBe("other-window");
+    await h.coordinator.refresh();
+    expect(h.controller.captureDraft().text).toBe("");
   });
 
   it("flushes newer local edits before an older acceptance so its CAS cannot consume them", async () => {
@@ -409,7 +472,7 @@ describe("Composer draft coordination through explicit test-only bridge and real
     expect((await h.read(a))?.scopeVersion).toBe("remote-version");
   });
 
-  it("does not turn transport rejection into a saved receipt or UI clear", async () => {
+  it("clears runtime-accepted input despite draft transport failure without claiming it was saved", async () => {
     const h = await setup();
     await h.coordinator.bindCommitted(a);
     h.controller.setText("keep");
@@ -420,9 +483,9 @@ describe("Composer draft coordination through explicit test-only bridge and real
     });
     const capture = h.coordinator.captureSubmission("start");
     expect(await h.coordinator.settleSubmission(capture, accepted())).toBe(
-      false,
+      true,
     );
-    expect(h.controller.captureDraft().text).toBe("keep");
+    expect(h.controller.captureDraft().text).toBe("");
     expect(h.coordinator.getSnapshot().mutation).toBe("unavailable");
     expect(JSON.stringify(h.coordinator.getSnapshot())).not.toContain(
       "private",

@@ -18,20 +18,23 @@ fn oauth_config_with_explicit_client_id() -> McpServerConfig {
             bearer_token_env_var: None,
             http_headers: None,
             env_http_headers: None,
+            http_headers_helper: None,
         },
         environment_id: crate::types::DEFAULT_MCP_SERVER_ENVIRONMENT_ID.to_string(),
         enabled: true,
-        startup_timeout: 30,
-        tool_timeout: None,
+        startup_timeout_sec: Some(std::time::Duration::from_secs(30)),
+        tool_timeout_sec: None,
         enabled_tools: None,
-        disabled_tools: Vec::new(),
+        disabled_tools: None,
         required: false,
         supports_parallel_tool_calls: false,
         scopes: Some(vec![" search.read ".to_string(), "".to_string()]),
         oauth: Some(McpServerOAuthConfig {
             client_id: Some("client".to_string()),
+            ..Default::default()
         }),
         oauth_resource: None,
+        ..Default::default()
     }
 }
 
@@ -42,18 +45,20 @@ fn dynamic_oauth_config(url: String) -> McpServerConfig {
             bearer_token_env_var: None,
             http_headers: None,
             env_http_headers: None,
+            http_headers_helper: None,
         },
         environment_id: crate::types::DEFAULT_MCP_SERVER_ENVIRONMENT_ID.to_string(),
         enabled: true,
-        startup_timeout: 30,
-        tool_timeout: None,
+        startup_timeout_sec: Some(std::time::Duration::from_secs(30)),
+        tool_timeout_sec: None,
         enabled_tools: None,
-        disabled_tools: Vec::new(),
+        disabled_tools: None,
         required: false,
         supports_parallel_tool_calls: false,
         scopes: Some(vec!["search.read".to_string()]),
         oauth: None,
         oauth_resource: None,
+        ..Default::default()
     }
 }
 

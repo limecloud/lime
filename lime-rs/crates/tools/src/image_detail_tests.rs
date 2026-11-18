@@ -1,10 +1,10 @@
 use super::*;
+use pretty_assertions::assert_eq;
 use protocol::models::DEFAULT_IMAGE_DETAIL;
 use protocol::models::FunctionCallOutputContentItem;
 use protocol::models::ImageDetail;
 use protocol::models::ImageReference;
 use protocol::openai_models::ModelInfo;
-use pretty_assertions::assert_eq;
 use serde_json::json;
 
 fn model_info() -> ModelInfo {

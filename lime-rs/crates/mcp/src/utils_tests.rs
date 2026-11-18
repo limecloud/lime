@@ -68,7 +68,7 @@ async fn passthrough_child() {
     let diagnostics = Arc::new(Mutex::new(String::new()));
     tracing::subscriber::set_global_default(ProbeDiagnostics(diagnostics.clone())).unwrap();
     // Cargo 的完整 workspace 测试二进制可能动态链接本机原生库；仅为夹具显式继承 loader 路径。
-    let env_vars = [
+    let env_vars: Vec<String> = [
         "MCP_VISIBLE",
         "MCP_OVERRIDE",
         "NODE_REPL_AUTH_TOKEN",
@@ -89,15 +89,18 @@ async fn passthrough_child() {
                 "utils::tests::native_probe".into(),
                 "--nocapture".into(),
             ],
-            env: HashMap::from([
+            env: Some(HashMap::from([
                 (
                     "MCP_TEST_OUTPUT".into(),
                     receipt.to_string_lossy().into_owned(),
                 ),
                 ("MCP_OVERRIDE".into(), " explicit value ".into()),
                 ("node_repl_auth_token".into(), "not forwarded".into()),
-            ]),
-            env_vars,
+            ])),
+            env_vars: env_vars
+                .into_iter()
+                .map(config::McpServerEnvVar::Name)
+                .collect(),
             cwd: None,
         },
         ..Default::default()

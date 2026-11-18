@@ -18,16 +18,17 @@ const SearchWrap = styled.div`
 const SearchField = styled.div`
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 10px;
   min-height: 36px;
-  padding: 0 8px;
-  border: 1px solid var(--lime-sidebar-border, hsl(var(--border)));
-  border-radius: 18px;
-  background: var(--lime-sidebar-search-bg, hsl(var(--muted)));
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9999px;
+  background: color-mix(
+    in srgb,
+    var(--lime-text-strong, #1a1c1f) 5.5%,
+    transparent
+  );
   color: var(--lime-sidebar-muted, hsl(var(--muted-foreground)));
-  &:focus-within {
-    border-color: var(--lime-brand, hsl(var(--primary)));
-  }
   svg {
     width: 14px;
     height: 14px;
@@ -40,7 +41,8 @@ const SearchField = styled.div`
     outline: 0;
     background: transparent;
     color: var(--lime-sidebar-foreground, hsl(var(--foreground)));
-    font-size: 13px;
+    font-size: 14px;
+    font-weight: 430;
   }
   input::-webkit-search-cancel-button {
     -webkit-appearance: none;

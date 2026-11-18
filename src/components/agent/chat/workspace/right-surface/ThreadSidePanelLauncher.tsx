@@ -39,7 +39,6 @@ export function ThreadSidePanelLauncher({
     <HeaderAction
       actionId="thread-side-panel-close"
       align="end"
-      divider={false}
       order={300}
       slotPosition="right"
     >

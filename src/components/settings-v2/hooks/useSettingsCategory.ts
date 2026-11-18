@@ -4,7 +4,7 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type { LucideIcon } from "lucide-react";
-import type { SettingsGroupKey, SettingsTabs } from "@/types/settings";
+import { SettingsGroupKey, type SettingsTabs } from "@/types/settings";
 import { isSettingsSection, settingsSections } from "../sections";
 
 export interface CategoryItem {
@@ -29,7 +29,10 @@ export function useSettingsCategory(): CategoryGroup[] {
       if (!group) {
         group = {
           key: section.group,
-          title: section.group ? t(`settings.group.${section.group}`) : "",
+          title:
+            section.group && section.group !== SettingsGroupKey.Configuration
+              ? t(`settings.group.${section.group}`)
+              : "",
           items: [],
         };
         groups.set(section.group, group);

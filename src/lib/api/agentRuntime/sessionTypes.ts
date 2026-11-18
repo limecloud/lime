@@ -91,6 +91,7 @@ export interface AgentSessionInfo {
   queued_turn_count?: number;
   section?: AgentSessionSection;
   section_entered_at?: number;
+  hasUnread?: boolean;
 }
 
 export interface AgentSessionSection {
@@ -597,4 +598,5 @@ export interface AgentSessionDetail {
   todo_items?: AgentTodoItem[];
   section?: AgentSessionSection;
   section_entered_at?: number;
+  hasUnread?: boolean;
 }

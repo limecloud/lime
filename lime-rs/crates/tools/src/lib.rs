@@ -22,7 +22,6 @@ mod tool_search;
 mod tool_spec;
 
 pub use catalog_tool_message::with_catalog_tool_message;
-pub use protocol::ToolName;
 pub use dynamic_tool::parse_dynamic_tool;
 pub use function_call_error::FunctionCallError;
 pub use functions_namespace_function_prefixes::FunctionsNamespaceFunctionPrefixes;
@@ -40,6 +39,7 @@ pub use mcp_tool::mcp_call_tool_result_output_schema;
 pub use mcp_tool::parse_agent_plugin_mcp_tool;
 pub use mcp_tool::parse_mcp_tool;
 pub use output_schema::ToolOutputSchema;
+pub use protocol::ToolName;
 pub use response_history::retain_tail_from_last_n_user_messages;
 pub use response_history::truncate_assistant_output_text_to_token_budget;
 pub use responses_api::FreeformTool;

@@ -31,7 +31,7 @@ All surfaces
 | 需求                                                            | Owner                                                  |
 | --------------------------------------------------------------- | ------------------------------------------------------ |
 | Thread / Turn / Item、read model、evidence、业务查询与写入      | App Server protocol + handler + current Rust domain    |
-| 模型路由、canonical content、capability、provider wire lowering | `runtime-core` / `model-provider`                      |
+| 模型路由、canonical content、capability、provider wire lowering | `model-routing-core` / `model-provider`                      |
 | 工具定义、审批、sandbox、dispatch、MCP                          | `tool-runtime`                                         |
 | 窗口、系统文件选择、通知、Dock、tray、updater、sidecar          | Electron Desktop Host                                  |
 | Cloud session credential 的平台加密保存、删除与 metadata        | `electron/secureCredentialStore.ts` + Desktop Host IPC |

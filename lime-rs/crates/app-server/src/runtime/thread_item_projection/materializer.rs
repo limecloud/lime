@@ -31,8 +31,8 @@ use std::collections::HashMap;
 
 /// Materialize durable AgentEvents.  Events may contain gaps, but must be in
 /// canonical sequence order; lower-sequence records are stale and ignored.
-pub(in crate::runtime) fn materialize_events(
-    events: &[AgentEvent],
+pub(in crate::runtime) fn materialize_events<'a>(
+    events: impl IntoIterator<Item = &'a AgentEvent>,
     default_session_id: &str,
     default_thread_id: &str,
 ) -> Result<ThreadHistoryChangeSet, MaterializationError> {

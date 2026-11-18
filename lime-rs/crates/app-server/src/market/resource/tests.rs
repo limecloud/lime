@@ -19,6 +19,7 @@ fn market_http_mcp_preserves_endpoint_tools_and_oauth_scopes() {
         bearer_token_env_var,
         http_headers,
         env_http_headers,
+        ..
     } = config.transport
     else {
         panic!()

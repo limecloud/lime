@@ -88,8 +88,8 @@ impl OAuthStoreLock {
         // the default home (`~/.lime`), and if an embedder has no local home/filesystem authority
         // those stores already cannot operate. A future provider-backed credential store should
         // provide its own matching lock authority instead of using this local path.
-        let lime_home = find_lime_home()
-            .map_err(|source| OAuthStoreLockFailure::LimeHome { store, source })?;
+        let lime_home =
+            find_lime_home().map_err(|source| OAuthStoreLockFailure::LimeHome { store, source })?;
         Self::acquire_in_with_mode(&lime_home, store, acquire_timeout, mode)
     }
 

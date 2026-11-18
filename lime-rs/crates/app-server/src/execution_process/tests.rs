@@ -1092,7 +1092,7 @@ fn interactive_stdin_command() -> Vec<String> {
 }
 
 #[test]
-fn remote_sandbox_context_lowers_codex_environment_wire() {
+fn remote_sandbox_context_lowers_host_environment_wire() {
     let cwd = app_server_protocol::protocol::v2::PathUri::from_host_path(current_directory())
         .expect("test cwd should be representable as file URI");
     let request = LiveExecutionRequest {

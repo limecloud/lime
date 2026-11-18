@@ -45,7 +45,6 @@ import {
 import { AdaptiveFooter } from "./ComposerLayout";
 import { useComposerLayout } from "./useComposerLayout";
 import {
-  ArrowUp,
   ChevronDown,
   ChevronUp,
   FileText,
@@ -149,6 +148,24 @@ interface InputbarCoreProps {
   commandPriority?: "normal" | "fallback";
   showEditorExpandButton?: boolean;
   contextualSuggestions: ContextualSuggestionsConfig;
+}
+
+function SendArrowIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M9.33467 16.6663V4.93978L4.6374 9.63704L4.1667 9.16634L3.69599 8.69661L9.52998 2.86263L9.63447 2.77767C9.8925 2.60753 10.2433 2.63564 10.4704 2.86263L16.3034 8.69661L16.3884 8.80111C16.5588 9.05922 16.5306 9.40982 16.3034 9.63704C16.0762 9.86414 15.7255 9.89242 15.4675 9.722L15.363 9.63704L10.6647 4.9388V16.6663C10.6647 17.0336 10.367 17.3314 9.99971 17.3314C9.63259 17.3312 9.33467 17.0335 9.33467 16.6663ZM4.6374 9.63704C4.3777 9.89674 3.95569 9.89674 3.69599 9.63704C3.43657 9.37744 3.43668 8.95628 3.69599 8.69661L4.6374 9.63704Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
 }
 
 export const InputbarCore: React.FC<InputbarCoreProps> = ({
@@ -491,7 +508,7 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
                 aria-label={uiCopy.action.send}
                 title={uiCopy.action.send}
               >
-                <ArrowUp size={16} strokeWidth={2.4} />
+                <SendArrowIcon />
               </SendButton>
             ) : null}
           </ActionButtonGroup>
@@ -655,7 +672,7 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
                         resolvedEditorRef.current?.focus();
                       }}
                     >
-                      <Plus size={15} />
+                      <Plus size={16} />
                     </InputIconButton>
                     {leftExtra}
                   </MetaSlot>

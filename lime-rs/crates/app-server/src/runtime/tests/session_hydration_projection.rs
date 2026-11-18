@@ -4,6 +4,72 @@ use async_trait::async_trait;
 
 struct ReasoningHistoryBackend;
 
+#[tokio::test(flavor = "current_thread")]
+async fn cold_projection_read_does_not_block_the_async_executor() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let store = Arc::new(
+        ProjectionStore::initialize(temp.path().join("projection.sqlite")).expect("projection"),
+    );
+    let writer = Arc::new(EventLogWriter::new(temp.path().join("events")).expect("writer"));
+    let core = RuntimeCore::with_backend(Arc::new(ReasoningHistoryBackend))
+        .with_event_log_writer(writer.clone())
+        .with_projection_store(store.clone());
+    core.start_session(AgentSessionStartParams {
+        session_id: Some("cold-projection".into()),
+        thread_id: Some("cold-thread".into()),
+        app_id: "agent-chat".into(),
+        workspace_id: None,
+        business_object_ref: None,
+        locale: None,
+    })
+    .expect("session");
+    core.start_turn(
+        AgentSessionTurnStartParams {
+            session_id: "cold-projection".into(),
+            turn_id: Some("cold-turn".into()),
+            input: AgentInput {
+                text: "Persist history before the cold read.".into(),
+                attachments: Vec::new(),
+            },
+            runtime_options: None,
+            queue_if_busy: false,
+            skip_pre_submit_resume: false,
+        },
+        RuntimeHostContext::default(),
+    )
+    .await
+    .expect("persisted turn");
+    let cold = RuntimeCore::default()
+        .with_event_log_writer(writer)
+        .with_projection_store(store.clone());
+    let conn = rusqlite::Connection::open(store.path()).expect("connection");
+    conn.execute_batch("PRAGMA journal_mode=DELETE; BEGIN EXCLUSIVE;")
+        .expect("hold projection read");
+    let (release, wait) = std::sync::mpsc::channel();
+    let holder = std::thread::spawn(move || {
+        let _ = wait.recv_timeout(Duration::from_secs(10));
+        conn.execute_batch("ROLLBACK")
+            .expect("release projection read");
+    });
+    let params = AgentSessionReadParams {
+        session_id: "cold-projection".into(),
+        history_limit: None,
+        history_offset: None,
+        history_before_message_id: None,
+    };
+    let read = cold.load_projection_session(&params);
+    tokio::pin!(read);
+    // The database remains locked until this executor can poll its timer.
+    tokio::select! {
+        biased;
+        result = &mut read => panic!("projection read finished before release: {result:?}"),
+        _ = tokio::time::sleep(Duration::from_millis(20)) => {}
+    }
+    release.send(()).expect("release");
+    assert!(read.await.expect("projection read").is_some());
+    holder.join().expect("lock holder");
+}
+
 #[async_trait]
 impl ExecutionBackend for ReasoningHistoryBackend {
     async fn start_turn(

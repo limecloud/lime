@@ -9,20 +9,21 @@ pub(super) fn create_test_config() -> McpServerConfig {
             env_vars: Vec::new(),
             command: "test-command".to_string(),
             args: vec!["--arg1".to_string(), "--arg2".to_string()],
-            env: HashMap::new(),
+            env: Some(HashMap::new()),
             cwd: None,
         },
         environment_id: crate::types::DEFAULT_MCP_SERVER_ENVIRONMENT_ID.to_string(),
         enabled: true,
-        startup_timeout: 30,
-        tool_timeout: None,
+        startup_timeout_sec: Some(std::time::Duration::from_secs(30)),
+        tool_timeout_sec: None,
         enabled_tools: None,
-        disabled_tools: Vec::new(),
+        disabled_tools: None,
         required: false,
         supports_parallel_tool_calls: false,
         scopes: None,
         oauth: None,
         oauth_resource: None,
+        ..Default::default()
     }
 }
 
@@ -32,20 +33,21 @@ pub(super) fn create_test_config_with_command(command: &str, timeout: u64) -> Mc
             env_vars: Vec::new(),
             command: command.to_string(),
             args: Vec::new(),
-            env: HashMap::new(),
+            env: Some(HashMap::new()),
             cwd: None,
         },
         environment_id: crate::types::DEFAULT_MCP_SERVER_ENVIRONMENT_ID.to_string(),
         enabled: true,
-        startup_timeout: timeout,
-        tool_timeout: None,
+        startup_timeout_sec: Some(std::time::Duration::from_secs(timeout)),
+        tool_timeout_sec: None,
         enabled_tools: None,
-        disabled_tools: Vec::new(),
+        disabled_tools: None,
         required: false,
         supports_parallel_tool_calls: false,
         scopes: None,
         oauth: None,
         oauth_resource: None,
+        ..Default::default()
     }
 }
 

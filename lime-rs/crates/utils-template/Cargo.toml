@@ -1,20 +1,11 @@
 [package]
-name = "utils-template"
+name = "lime-utils-template"
 version.workspace = true
 edition = "2024"
 license.workspace = true
-authors.workspace = true
-repository.workspace = true
-description = "Template expansion helpers."
 
 [lib]
-name = "utils_template"
-path = "src/lib.rs"
 doctest = false
-
-[dependencies]
-serde_json.workspace = true
-thiserror.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true

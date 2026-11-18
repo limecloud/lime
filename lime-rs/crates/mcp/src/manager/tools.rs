@@ -44,9 +44,11 @@ impl McpClientManager {
         // 2. 从所有运行中的服务器获取工具
         let mut all_tools: Vec<McpToolDefinition> = Vec::new();
         let clients = self.clients.read().await;
-        let config_by_server = clients
-            .iter()
-            .map(|(server_name, wrapper)| (server_name.clone(), wrapper.config.clone()))
+        let config_by_server = self
+            .registered_servers()
+            .await
+            .into_iter()
+            .map(|server| (server.name().to_string(), server.config().clone()))
             .collect::<HashMap<_, _>>();
 
         for (server_name, wrapper) in clients.iter() {
@@ -67,8 +69,19 @@ impl McpClientManager {
                 }
             };
 
-            // 调用 list_tools（使用 list_all_tools 获取所有工具）
-            match service.list_all_tools().await {
+            let service = service.clone();
+            match crate::pagination::collect_paginated("tools/list", None, move |params| {
+                let service = service.clone();
+                async move {
+                    let result = service
+                        .list_tools(params)
+                        .await
+                        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+                    Ok((result.tools, result.next_cursor))
+                }
+            })
+            .await
+            {
                 Ok(tools) => {
                     debug!(
                         server_name = %server_name,
@@ -137,17 +150,33 @@ impl McpClientManager {
         server_name: &str,
         tool_name: &str,
     ) -> Result<McpAppToolAuthority, McpError> {
+        let config = self
+            .get_client_config(server_name)
+            .await
+            .ok_or_else(|| McpError::ServerNotRunning(server_name.to_string()))?;
+        if !config.tool_is_enabled(tool_name) {
+            return Err(McpError::ToolNotFound(format!("{server_name}/{tool_name}")));
+        }
         let clients = self.clients.read().await;
         let wrapper = clients
             .get(server_name)
             .ok_or_else(|| McpError::ServerNotRunning(server_name.to_string()))?;
-        if !wrapper.config.tool_is_enabled(tool_name) {
-            return Err(McpError::ToolNotFound(format!("{server_name}/{tool_name}")));
-        }
         let service = wrapper
             .running_service()
-            .ok_or_else(|| McpError::ServerNotRunning(server_name.to_string()))?;
-        let tools = service.list_all_tools().await.map_err(|error| {
+            .ok_or_else(|| McpError::ServerNotRunning(server_name.to_string()))?
+            .clone();
+        let tools = crate::pagination::collect_paginated("tools/list", None, move |params| {
+            let service = service.clone();
+            async move {
+                let result = service
+                    .list_tools(params)
+                    .await
+                    .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+                Ok((result.tools, result.next_cursor))
+            }
+        })
+        .await
+        .map_err(|error| {
             McpError::ToolCallFailed(format!("读取 MCP 工具 authority 失败: {error}"))
         })?;
         let tool = tools
@@ -346,9 +375,13 @@ impl McpClientManager {
         let service = wrapper
             .running_service()
             .ok_or_else(|| McpError::ServerNotRunning(server_name.clone()))?;
-        let tool_timeout = super::bridge_tool_timeout(&wrapper.config);
         let service = service.clone();
         drop(clients);
+        let config = self
+            .get_client_config(&server_name)
+            .await
+            .ok_or_else(|| McpError::ServerNotRunning(server_name.clone()))?;
+        let tool_timeout = super::bridge_tool_timeout(&config);
 
         // 3. 构建工具调用参数
         let args = match arguments {

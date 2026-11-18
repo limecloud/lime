@@ -2,6 +2,7 @@
 import {
   IPC_DEEP_LINK_GET_CURRENT_CHANNEL,
   IPC_DEEP_LINK_GET_URLS_CHANNEL,
+  IPC_OPEN_SESSION_WINDOW_CHANNEL,
   IPC_DIALOG_OPEN_CHANNEL,
   IPC_DIALOG_SAVE_CHANNEL,
   IPC_GLOBAL_SHORTCUT_COMMAND_CHANNEL,
@@ -1221,6 +1222,33 @@ function registerIpcHandlers(): void {
     !cloudDesktopWindows.isCloud(event.sender.id) && pendingDeepLinks.length > 0
       ? pendingDeepLinks
       : null,
+  );
+  ipcMain.handle(
+    IPC_OPEN_SESSION_WINDOW_CHANNEL,
+    (event, sessionId: unknown): void => {
+      if (cloudDesktopWindows.isCloud(event.sender.id)) {
+        throw new Error(
+          "local host capability is unavailable in a cloud desktop window",
+        );
+      }
+      const normalizedSessionId = normalizeString(sessionId);
+      if (!normalizedSessionId) {
+        throw new Error("sessionId is required");
+      }
+      const window = createNewWindow();
+      window.webContents.once("did-finish-load", () => {
+        setTimeout(() => {
+          if (window.isDestroyed()) {
+            return;
+          }
+          window.webContents.send("evt:deep-link-open-url", {
+            payload: [
+              `lime://session?sessionId=${encodeURIComponent(normalizedSessionId)}`,
+            ],
+          });
+        }, 250);
+      });
+    },
   );
 }
 

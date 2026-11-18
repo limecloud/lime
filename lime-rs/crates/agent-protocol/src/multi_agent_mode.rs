@@ -27,7 +27,7 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn uses_codex_wire_shape() {
+    fn uses_host_wire_shape() {
         for (wire, expected) in [
             (
                 json!("explicitRequestOnly"),
@@ -47,7 +47,7 @@ mod tests {
     }
 
     #[test]
-    fn effective_mode_follows_codex_reasoning_rule() {
+    fn effective_mode_follows_host_reasoning_rule() {
         assert_eq!(
             MultiAgentMode::from_reasoning_effort(Some("ultra")),
             MultiAgentMode::Proactive

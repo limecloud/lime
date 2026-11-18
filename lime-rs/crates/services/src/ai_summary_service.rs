@@ -2,7 +2,7 @@
 //!
 //! 使用 AI 模型生成高质量的会话摘要，提取关键主题和重要决策
 
-use lime_core::general_chat::{ChatMessage, MessageRole};
+use crate::general_chat::{ChatMessage, MessageRole};
 use serde::{Deserialize, Serialize};
 
 /// AI 摘要请求

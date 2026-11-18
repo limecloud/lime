@@ -7,8 +7,8 @@ use agent_protocol::{
     ItemId, ItemKind, ItemStatus, MessageContentPart, ThreadItem, ThreadItemPayload, ToolOutput,
 };
 use app_server_protocol::AgentEvent;
-use runtime_core::runtime_media_part_from_reference;
-use runtime_core::RuntimeMediaPartInput;
+use model_routing_core::runtime_media_part_from_reference;
+use model_routing_core::RuntimeMediaPartInput;
 use serde_json::json;
 use serde_json::Value;
 use std::collections::HashMap;

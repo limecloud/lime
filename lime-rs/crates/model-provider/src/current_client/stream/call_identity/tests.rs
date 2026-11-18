@@ -1,6 +1,6 @@
 use super::*;
 use crate::current_client::stream::ResponsesEventReducer;
-use runtime_core::CanonicalLlmEvent;
+use model_routing_core::CanonicalLlmEvent;
 use serde_json::json;
 
 #[test]

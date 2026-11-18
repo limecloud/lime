@@ -236,7 +236,7 @@ mod tests {
     use agent_protocol::ImageDetail;
 
     #[test]
-    fn remote_queue_images_fail_closed_with_codex_error() {
+    fn remote_queue_images_fail_closed_with_host_error() {
         for url in [
             "http://example.test/image.png",
             "HTTPS://example.test/image.png",

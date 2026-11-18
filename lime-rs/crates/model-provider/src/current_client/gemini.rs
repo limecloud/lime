@@ -2,11 +2,11 @@ use super::stream::{sse_frames_with_idle_timeout, DEFAULT_STREAM_IDLE_TIMEOUT};
 use super::CurrentProviderError;
 use async_stream::try_stream;
 use futures::{Stream, StreamExt};
-use reqwest::Response;
-use runtime_core::{
+use model_routing_core::{
     CanonicalLlmEvent as LlmEvent, CanonicalRequest, CanonicalRole, CanonicalToolDefinition,
     ContentPart, FailureClassification, FinishReason, ToolResultValue, Usage,
 };
+use reqwest::Response;
 use serde_json::{json, Map, Value};
 use std::collections::BTreeMap;
 

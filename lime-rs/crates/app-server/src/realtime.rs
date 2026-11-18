@@ -247,7 +247,7 @@ mod tests {
     }
 
     #[test]
-    fn token_mint_method_is_registered_and_codex_thread_methods_are_not() {
+    fn token_mint_method_is_registered_and_host_thread_methods_are_not() {
         let catalog: Vec<&str> = app_server_method_catalog()
             .into_iter()
             .map(|spec| spec.method)

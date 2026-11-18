@@ -570,6 +570,9 @@ export function WorkspaceConversationScene({
         summaryToggle={
           <ThreadSummaryToggle state={summary} panel={summaryPanel} />
         }
+        projects={threadDirectory.projects}
+        projectId={threadDirectory.projectId}
+        onMoveToProject={threadDirectory.assign}
         leading={
           <ThreadProjectSelector
             threadId={currentThreadId}

@@ -128,3 +128,48 @@ async fn local_process_pty_round_trip() {
     assert!(text.contains("lime-pty"), "unexpected output: {text}");
     started.process.terminate().await.expect("terminate");
 }
+
+#[tokio::test]
+async fn local_process_close_stdin_delivers_eof() {
+    let backend = LocalProcess::local();
+    let started = backend
+        .start(params(
+            "public-stdin-close",
+            vec!["/bin/sh".to_string(), "-c".to_string(), "cat".to_string()],
+            false,
+            true,
+        ))
+        .await
+        .expect("start local process");
+    let mut events = started.process.subscribe_events();
+
+    started
+        .process
+        .write(b"hello".to_vec())
+        .await
+        .expect("write stdin");
+    started.process.close_stdin().await.expect("close stdin");
+
+    let mut output = Vec::new();
+    let exit_code = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            match events.recv().await.expect("process event") {
+                exec_server::ExecProcessEvent::Output(chunk) => {
+                    output.extend_from_slice(chunk.chunk.as_ref());
+                }
+                exec_server::ExecProcessEvent::Exited { exit_code, .. } => break exit_code,
+                exec_server::ExecProcessEvent::Closed { .. } => {
+                    panic!("process closed without exit")
+                }
+                exec_server::ExecProcessEvent::Failed(message) => {
+                    panic!("process failed: {message}")
+                }
+            }
+        }
+    })
+    .await
+    .expect("process exit after stdin close");
+
+    assert_eq!(exit_code, 0);
+    assert_eq!(String::from_utf8_lossy(&output), "hello");
+}

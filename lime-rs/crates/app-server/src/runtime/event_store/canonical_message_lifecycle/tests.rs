@@ -73,7 +73,7 @@ fn async_user_input_coexists_with_streaming_body_and_retains_per_id_validation()
 }
 
 #[test]
-fn wraps_message_and_reasoning_with_codex_item_lifecycle() {
+fn wraps_message_and_reasoning_with_host_item_lifecycle() {
     let events = with_canonical_message_reasoning_lifecycle(
         &[],
         Some("turn-1"),

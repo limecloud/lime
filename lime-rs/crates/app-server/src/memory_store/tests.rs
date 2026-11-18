@@ -93,7 +93,7 @@ async fn list_initializes_stable_layout() {
 }
 
 #[tokio::test]
-async fn status_reports_codex_memory_readiness_after_rollout_consolidation() {
+async fn status_reports_host_memory_readiness_after_rollout_consolidation() {
     let temp = tempfile::tempdir().expect("tempdir");
     let backend = backend(&temp);
     let before = backend

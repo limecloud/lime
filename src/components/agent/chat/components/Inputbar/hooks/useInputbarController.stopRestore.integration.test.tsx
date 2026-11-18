@@ -480,7 +480,10 @@ describe("actual Inputbar Stop across submission settlement, stream and draft ow
   it("keeps a newer selection while local consumption was pending", async () => {
     const h = await setup({ delayedConsume: true });
     await h.send();
-    await act(async () => h.controller.setSelection(5, 7));
+    await act(async () => {
+      h.controller.setText("new draft selection");
+      h.controller.setSelection(5, 7);
+    });
     const newer = h.controller.captureDraft();
     await h.stop();
     await h.release();

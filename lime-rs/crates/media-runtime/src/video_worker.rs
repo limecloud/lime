@@ -6,7 +6,7 @@ use model_provider::video::{
     execute_video_generation, VideoProtocol, VideoProviderConfig, VideoProviderError,
     VideoProviderProgress, VideoProviderRequest,
 };
-use runtime_core::CanonicalRequest;
+use model_routing_core::CanonicalRequest;
 use serde_json::{json, Value};
 
 use super::model_route;

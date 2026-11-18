@@ -310,6 +310,7 @@ async fn test_start_http_server_rejects_unknown_environment_before_connect() {
         bearer_token_env_var: None,
         http_headers: None,
         env_http_headers: None,
+        http_headers_helper: None,
     };
     config.environment_id = "remote".to_string();
 
@@ -349,10 +350,10 @@ done
         env_vars: Vec::new(),
         command: "/bin/sh".to_string(),
         args: vec!["-c".to_string(), script.to_string()],
-        env: HashMap::from([(
+        env: Some(HashMap::from([(
             "CHILD_PID_FILE".to_string(),
             child_pid_file.to_string_lossy().into_owned(),
-        )]),
+        )])),
         cwd: None,
     };
     let manager = McpClientManager::new(None);
@@ -452,3 +453,22 @@ async fn test_restart_server_stops_then_starts() {
 // ========================================================================
 // 工具名称冲突解决测试（Task 4.3）
 // ========================================================================
+
+#[tokio::test]
+async fn catalog_registration_tracks_add_and_remove_client() {
+    let manager = McpClientManager::new(None);
+    let client = create_test_client("catalog-server");
+    manager
+        .add_client("catalog-server".to_string(), client)
+        .await
+        .unwrap();
+
+    let servers = manager.registered_servers().await;
+    assert_eq!(servers.len(), 1);
+    assert_eq!(servers[0].name(), "catalog-server");
+
+    let removed = manager.remove_client("catalog-server").await;
+    assert!(removed.is_some());
+    assert!(manager.registered_servers().await.is_empty());
+    assert!(manager.get_client_config("catalog-server").await.is_none());
+}

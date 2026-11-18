@@ -46,8 +46,19 @@ impl McpClientManager {
                 }
             };
 
-            // 调用 list_all_prompts 获取所有提示词
-            match service.list_all_prompts().await {
+            let service = service.clone();
+            match crate::pagination::collect_paginated("prompts/list", None, move |params| {
+                let service = service.clone();
+                async move {
+                    let result = service
+                        .list_prompts(params)
+                        .await
+                        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+                    Ok((result.prompts, result.next_cursor))
+                }
+            })
+            .await
+            {
                 Ok(prompts) => {
                     debug!(
                         server_name = %server_name,

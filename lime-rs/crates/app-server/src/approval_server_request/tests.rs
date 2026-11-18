@@ -18,7 +18,7 @@ fn event(payload: Value) -> AgentEvent {
 }
 
 #[test]
-fn lowers_tool_confirmation_to_codex_command_approval_request() {
+fn lowers_tool_confirmation_to_host_command_approval_request() {
     let request = command_approval_request(&event(json!({
         "requestId": "approval-1",
         "actionType": "tool_confirmation",
@@ -166,7 +166,7 @@ fn ignores_legacy_network_host_for_non_managed_approval() {
 }
 
 #[test]
-fn routes_apply_patch_to_codex_file_change_approval_request() {
+fn routes_apply_patch_to_host_file_change_approval_request() {
     let request = action_server_request(&event(json!({
         "requestId": "approval-file-1",
         "actionType": "tool_confirmation",
@@ -230,7 +230,7 @@ fn fixture_shaped_apply_patch_action_required_selects_file_change_approval() {
 }
 
 #[test]
-fn lowers_nested_ask_user_to_codex_tool_request() {
+fn lowers_nested_ask_user_to_host_tool_request() {
     let request = action_server_request(&event(json!({
         "requestId": "ask-1",
         "data": {

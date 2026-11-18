@@ -103,5 +103,8 @@ pub(super) fn assert_external_editor_handoff(output: &str) {
         Some(""),
         "external editor must not inherit our managed title"
     );
-    assert!(titles(&output[marker..]).any(|title| !title.is_empty()), "returning from the external editor must reapply the title even when context did not change");
+    assert!(
+        titles(&output[marker..]).any(|title| !title.is_empty()),
+        "returning from the external editor must reapply the title even when context did not change"
+    );
 }

@@ -788,6 +788,7 @@ pub(crate) fn apply_exec_metadata(
                 env.insert(LIME_THREAD_ID_ENV_VAR.to_string(), thread_id.to_string());
             }
             None => {
+                #[cfg(windows)]
                 env.remove(LIME_THREAD_ID_ENV_VAR);
             }
         }
@@ -930,6 +931,10 @@ impl ExecProcess for LocalExecProcess {
         Box::pin(LocalExecProcess::write(self, chunk))
     }
 
+    fn close_stdin(&self) -> ExecProcessFuture<'_, ()> {
+        Box::pin(self.backend.close_stdin(&self.process_id))
+    }
+
     fn signal(&self, signal: ProcessSignal) -> ExecProcessFuture<'_, ()> {
         Box::pin(LocalExecProcess::signal(self, signal))
     }
@@ -972,6 +977,22 @@ impl LocalProcess {
         })
         .await
         .map_err(map_handler_error)
+    }
+
+    async fn close_stdin(&self, process_id: &ProcessId) -> Result<(), ExecServerError> {
+        let processes = self.inner.processes.lock().await;
+        let Some(ProcessEntry::Running(process)) = processes.get(process_id) else {
+            return Err(ExecServerError::Protocol(format!(
+                "unknown process {process_id}"
+            )));
+        };
+        if process.closed {
+            return Err(ExecServerError::Protocol(format!(
+                "process {process_id} already closed"
+            )));
+        }
+        process.session.close_stdin();
+        Ok(())
     }
 
     async fn signal(

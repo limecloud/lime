@@ -1,9 +1,10 @@
 //! MCP 协议、状态与工具类型。
 
 use crate::auth_status::McpServerAuthStatus;
-pub use crate::mcp_types::{
-    McpServerConfig, McpServerOAuthConfig, McpServerTransport, DEFAULT_MCP_SERVER_ENVIRONMENT_ID,
-};
+pub use config::McpServerConfig;
+pub use config::McpServerOAuthConfig;
+pub use config::McpServerTransportConfig as McpServerTransport;
+pub use config::DEFAULT_MCP_SERVER_ENVIRONMENT_ID;
 use serde::{Deserialize, Serialize};
 
 /// MCP 服务器信息（包含运行状态）

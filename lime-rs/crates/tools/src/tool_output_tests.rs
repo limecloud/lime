@@ -1,8 +1,8 @@
+use pretty_assertions::assert_eq;
 use protocol::models::AudioReference;
 use protocol::models::ContentItem;
 use protocol::models::ImageReference;
 use protocol::models::ResponseInputItem;
-use pretty_assertions::assert_eq;
 
 use super::response_input_to_code_mode_result;
 

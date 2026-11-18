@@ -116,7 +116,9 @@ pub(super) fn exercise_notes_and_selection(
         "IME Tab notes cancellation keeps the selected option without answering",
         |screen| screen.contains("› 2. Safe") && !screen.contains("IME_TAB_TAIL"),
     );
-    eprintln!("TUI_NOTES_IME_TAB_OK prefix=immediate tab=literal draft=preserved cancel=explicit response=none");
+    eprintln!(
+        "TUI_NOTES_IME_TAB_OK prefix=immediate tab=literal draft=preserved cancel=explicit response=none"
+    );
     let burst = format!(
         "/model\t@parser\n{}\nPTY_NOTES_BURST_TAIL",
         "界🙂".repeat(501)
@@ -181,7 +183,9 @@ pub(super) fn exercise_notes_and_selection(
             .any(|entry| entry["scenario"] == "user-input" && entry["kind"] == "actionRespond"),
         "long notes remain a draft until explicit acceptance"
     );
-    eprintln!("TUI_NOTES_PASTE_OK compact=atomic unicode=preserved answer=expanded commands=literal submit=explicit");
+    eprintln!(
+        "TUI_NOTES_PASTE_OK compact=atomic unicode=preserved answer=expanded commands=literal submit=explicit"
+    );
     writer.write_all(b"\r").unwrap();
     writer.flush().unwrap();
     wait_for_screen(
@@ -244,7 +248,9 @@ pub(super) fn exercise_notes_and_selection(
             .any(|entry| entry["scenario"] == "user-input" && entry["kind"] == "actionRespond"),
         "revisiting accepted notes must not resolve the request before the last explicit answer"
     );
-    eprintln!("TUI_NOTES_REVISIT_OK accepted=rich cursor=restored revision=exact followup=preserved response=once");
+    eprintln!(
+        "TUI_NOTES_REVISIT_OK accepted=rich cursor=restored revision=exact followup=preserved response=once"
+    );
     writer
         .write_all(b"\x1b[5~\x1b[200~ UNACCEPTED\x1b[201~")
         .unwrap();
@@ -322,5 +328,7 @@ pub(super) fn exercise_notes_and_selection(
         column + followup.len() as u16 - 1,
         Duration::from_secs(10),
     );
-    eprintln!("TUI_NOTES_UNANSWERED_OK edited=uncommitted confirm=explicit return=first draft=rich cursor=restored response=once");
+    eprintln!(
+        "TUI_NOTES_UNANSWERED_OK edited=uncommitted confirm=explicit return=first draft=rich cursor=restored response=once"
+    );
 }

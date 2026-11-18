@@ -87,7 +87,7 @@ impl InstallContext {
         current_exe: Option<&Path>,
         method_override: Option<InstallMethod>,
     ) -> Self {
-        let lime_home = utils_home_dir::find_lime_home().ok();
+        let lime_home = lime_utils_home_dir::find_lime_home().ok();
         Self::from_exe_with_lime_home(is_macos, current_exe, method_override, lime_home.as_deref())
     }
 

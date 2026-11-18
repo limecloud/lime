@@ -65,20 +65,21 @@ mod tests {
                 env_vars: Vec::new(),
                 command: "server".to_string(),
                 args: Vec::new(),
-                env: HashMap::new(),
+                env: Some(HashMap::new()),
                 cwd: None,
             },
             environment_id: "local".to_string(),
             enabled: true,
-            startup_timeout: 30,
-            tool_timeout: None,
+            startup_timeout_sec: Some(std::time::Duration::from_secs(30)),
+            tool_timeout_sec: None,
             enabled_tools: None,
-            disabled_tools: Vec::new(),
+            disabled_tools: None,
             required: false,
             supports_parallel_tool_calls: false,
             scopes: None,
             oauth: None,
             oauth_resource: None,
+            ..Default::default()
         };
 
         assert_eq!(

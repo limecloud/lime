@@ -13,6 +13,7 @@ path = "src/lib.rs"
 doctest = false
 
 [dependencies]
+dirs.workspace = true
 anyhow.workspace = true
 base64.workspace = true
 dunce = "1"
@@ -46,7 +47,7 @@ toml_edit = "0.24"
 tonic = { version = "0.14.3", default-features = false, features = ["codegen", "tls-native-roots", "tls-ring"] }
 tonic-prost = "0.14.3"
 tracing.workspace = true
-utils-path = { path = "../utils-path" }
+utils-path = { path = "../utils-path", package = "lime-utils-path" }
 utils-redacted-string = { path = "../utils-redacted-string" }
 wildmatch = "2.6"
 

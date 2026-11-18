@@ -295,7 +295,7 @@ mod tests {
     }
 
     #[test]
-    fn retries_codex_default_request_statuses() {
+    fn retries_host_default_request_statuses() {
         for code in 500..=599 {
             let status = StatusCode::from_u16(code).expect("server status");
             assert!(should_retry_stream_request_status(status), "{status}");

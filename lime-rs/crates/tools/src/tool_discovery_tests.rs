@@ -1,5 +1,5 @@
-use super::*;
 use super::ConnectorAppInfo;
+use super::*;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 

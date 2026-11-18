@@ -6,6 +6,7 @@
 mod active_time;
 pub mod auth_status;
 pub mod bridge_client;
+pub mod catalog;
 mod client;
 mod client_service;
 pub mod elicitation;
@@ -13,21 +14,25 @@ mod environment;
 pub mod events;
 pub mod extension_surface;
 pub mod manager;
-pub mod mcp_types;
 pub mod naming;
 pub mod oauth;
 pub mod oauth_store;
+mod pagination;
 mod plugin_config;
+mod runtime_types;
+mod server_key;
 mod stdio_launcher;
 mod stdio_process;
 mod streamable_http;
-pub mod tool_converter;
 pub mod tool_policy;
 pub mod types;
 mod utils;
 
 pub use auth_status::{McpServerAuthActionPlan, McpServerAuthStatus};
 pub use bridge_client::McpBridgeClient;
+pub use catalog::{
+    McpCatalog, McpPluginAttribution, McpServerExposure, McpServerSource, ResolvedMcpServer,
+};
 pub use client_service::LimeMcpClientService;
 pub use elicitation::{
     ClaimedElicitationResolution, ElicitationAction, ElicitationRequest, ElicitationRequestId,
@@ -46,7 +51,15 @@ pub use plugin_config::parse_plugin_mcp_config;
 pub use plugin_config::parse_plugin_mcp_declarations;
 pub use plugin_config::PluginMcpConfigParseOutcome;
 pub use plugin_config::PluginMcpServerParseError;
-pub use tool_converter::ToolConverter;
+pub use rmcp_client::McpProtocolMode;
+pub const LIME_APPS_MCP_SERVER_NAME: &str = "lime_apps";
+pub const MCP_TOOL_LIME_APPS_META_KEY: &str = "_lime_apps";
+
+pub use runtime_types::{
+    McpConfig, McpResourceClient, McpResourceClientAuthKey, McpResourceServerCacheKey,
+    PreparedMcpCall, ToolInfo,
+};
+pub use server_key::McpServerKey;
 pub use types::{
     McpContent, McpError, McpManagerState, McpPromptArgument, McpPromptDefinition,
     McpPromptMessage, McpPromptResult, McpResourceContent, McpResourceDefinition,

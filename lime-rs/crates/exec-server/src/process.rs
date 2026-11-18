@@ -212,6 +212,8 @@ pub trait ExecProcess: Send + Sync {
 
     fn write(&self, chunk: Vec<u8>) -> ExecProcessFuture<'_, WriteResponse>;
 
+    fn close_stdin(&self) -> ExecProcessFuture<'_, ()>;
+
     fn signal(&self, signal: ProcessSignal) -> ExecProcessFuture<'_, ()>;
 
     fn terminate(&self) -> ExecProcessFuture<'_, ()>;

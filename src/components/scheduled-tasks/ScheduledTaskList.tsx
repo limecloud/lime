@@ -144,7 +144,7 @@ export function ScheduledTaskList({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="mt-3 flex h-8 w-full items-center gap-2 rounded-md px-1 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="mt-3 flex h-[30px] w-full items-center gap-2 rounded-md px-1 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
               aria-label={newTaskLabel}
             >
               <Plus className="h-3.5 w-3.5 text-slate-500" />
@@ -225,7 +225,7 @@ export function ScheduledTaskList({
               if (!groupTasks.length) return null;
               return (
                 <div key={group} className="space-y-1">
-                  <p className="px-3 pb-1 pt-1 text-[11px] font-medium text-slate-400">
+                  <p className="px-3 pb-1 pt-1 text-[12px] font-medium text-slate-400">
                     {t(`scheduledTasks.group.${group}`)}
                   </p>
                   {groupTasks.map((task) => {

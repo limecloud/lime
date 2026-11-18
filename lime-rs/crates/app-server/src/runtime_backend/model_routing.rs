@@ -6,7 +6,7 @@ use lime_core::database::dao::api_key_provider::{ApiProviderType, ProviderWithKe
 use lime_core::database::DbConnection;
 use lime_services::api_key_provider_service::ApiKeyProviderService;
 use lime_services::model_registry_service::ModelRegistryService;
-use runtime_core::{
+use model_routing_core::{
     resolve_ready_model_routing_with_candidate_set, ModelRouteExclusion, ModelRoutingDecision,
     ProviderReadiness, RoutingAttempt, RoutingResolution,
 };
@@ -17,7 +17,7 @@ pub(super) fn selection_from_profile_model_slot(
     request: &ExecutionRequest,
 ) -> Option<RuntimeModelSelection> {
     let metadata_values = metadata_candidates(request);
-    runtime_core::selection_from_profile_model_slot(
+    model_routing_core::selection_from_profile_model_slot(
         &metadata_values,
         super::request_context::reasoning_effort_from_request(request),
         None,
@@ -51,7 +51,8 @@ fn resolve_direct_routing(
     selection: &RuntimeModelSelection,
     config: &SessionProviderConfig,
 ) -> RoutingResolution {
-    let mut routing = runtime_core::resolve_model_routing_for_candidate(metadata_values, selection);
+    let mut routing =
+        model_routing_core::resolve_model_routing_for_candidate(metadata_values, selection);
     let readiness = direct_provider_readiness(config);
     let attempt = RoutingAttempt {
         slot: routing.service_model_slot.clone(),
@@ -97,7 +98,12 @@ pub(super) fn routing_decision_payload(
     readiness: &ProviderReadiness,
     model_registry: &RuntimeModelRegistryMetadata,
 ) -> Value {
-    runtime_core::routing_decision_payload(selection, routing, readiness, model_registry.payload())
+    model_routing_core::routing_decision_payload(
+        selection,
+        routing,
+        readiness,
+        model_registry.payload(),
+    )
 }
 
 pub(crate) fn configured_provider_readiness(provider: &ProviderWithKeys) -> ProviderReadiness {
@@ -168,7 +174,7 @@ fn direct_provider_readiness(config: &SessionProviderConfig) -> ProviderReadines
     let protocol = config
         .route_protocol
         .clone()
-        .unwrap_or_else(|| runtime_core::protocol_from_provider_name(&config.provider_name));
+        .unwrap_or_else(|| model_routing_core::protocol_from_provider_name(&config.provider_name));
     let provider_name = config
         .provider_name
         .trim()
@@ -274,7 +280,7 @@ mod tests {
         };
         let metadata_values = metadata_candidates(&request);
         let routing =
-            runtime_core::resolve_model_routing_for_candidate(&metadata_values, &selection);
+            model_routing_core::resolve_model_routing_for_candidate(&metadata_values, &selection);
         let readiness = ProviderReadiness {
             ready: true,
             status: "ready",

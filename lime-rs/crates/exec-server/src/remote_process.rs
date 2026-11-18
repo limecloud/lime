@@ -117,6 +117,14 @@ impl ExecProcess for RemoteExecProcess {
         Box::pin(RemoteExecProcess::write(self, chunk))
     }
 
+    fn close_stdin(&self) -> ExecProcessFuture<'_, ()> {
+        Box::pin(async {
+            Err(crate::ExecServerError::Protocol(
+                "remote exec backend does not support closing stdin".to_string(),
+            ))
+        })
+    }
+
     fn signal(&self, signal: ProcessSignal) -> ExecProcessFuture<'_, ()> {
         Box::pin(RemoteExecProcess::signal(self, signal))
     }

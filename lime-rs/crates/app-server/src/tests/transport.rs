@@ -193,7 +193,7 @@ async fn experimental_notifications_only_reach_capable_connections() {
 }
 
 #[test]
-fn experimental_method_gate_matches_current_codex_surface() {
+fn experimental_method_gate_matches_current_host_surface() {
     use app_server_protocol::protocol::v2;
 
     for method in [

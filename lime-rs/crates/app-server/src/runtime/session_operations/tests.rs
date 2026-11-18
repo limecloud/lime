@@ -4,6 +4,47 @@ use serde_json::json;
 
 struct RejectingModelSwitchBackend;
 
+#[tokio::test]
+async fn unchanged_memory_mode_does_not_rewrite_session_metadata() {
+    let temp = tempfile::tempdir().unwrap();
+    let store = Arc::new(
+        crate::ProjectionStore::initialize(temp.path().join("projection.sqlite")).unwrap(),
+    );
+    let core = RuntimeCore::with_backend(Arc::new(RejectingModelSwitchBackend))
+        .with_projection_store(store.clone());
+    core.start_session(app_server_protocol::AgentSessionStartParams {
+        session_id: Some("session-noop".into()),
+        thread_id: Some("thread-noop".into()),
+        app_id: "agent-chat".into(),
+        workspace_id: None,
+        business_object_ref: Some(app_server_protocol::BusinessObjectRef {
+            kind: "agent.thread".into(),
+            id: "thread-noop".into(),
+            title: None,
+            uri: None,
+            metadata: Some(json!({"memoryMode": "enabled"})),
+        }),
+        locale: None,
+    })
+    .unwrap();
+    let before = {
+        let mut state = core.state.lock().unwrap();
+        let session = &mut state.sessions.get_mut("session-noop").unwrap().session;
+        session.updated_at = "2026-01-01T00:00:00Z".into();
+        session.clone()
+    };
+    apply_session_metadata_mutation(
+        &core.state,
+        &store,
+        "session-noop",
+        "thread-noop",
+        SessionMetadataMutation::MemoryMode(ThreadMemoryMode::Enabled),
+    )
+    .unwrap();
+    let state = core.state.lock().unwrap();
+    assert_eq!(state.sessions["session-noop"].session, before);
+}
+
 #[async_trait]
 impl crate::ExecutionBackend for RejectingModelSwitchBackend {
     async fn preflight_thread_settings(

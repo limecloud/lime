@@ -1,11 +1,8 @@
 [package]
 name = "extension-items"
 version.workspace = true
-edition = "2021"
+edition = "2024"
 license.workspace = true
-authors.workspace = true
-repository.workspace = true
-description = "Extension item declarations."
 
 [lib]
 name = "extension_items"
@@ -13,11 +10,11 @@ path = "src/lib.rs"
 doctest = false
 
 [dependencies]
-lime-utils-absolute-path.workspace = true
-schemars = "0.8"
+lime-utils-absolute-path = { path = "../utils-absolute-path" }
+schemars = "0.8.22"
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-ts-rs = "11"
+ts-rs = { version = "11.0.1", features = ["uuid-impl", "serde-json-impl", "no-serde-warnings"] }
 
 [dev-dependencies]
 pretty_assertions.workspace = true

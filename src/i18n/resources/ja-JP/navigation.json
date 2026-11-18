@@ -465,5 +465,8 @@
   "commands.newProject.title": "新しいプロジェクト",
   "commands.newProject.description": "Lime で新しいプロジェクトを作成",
   "commands.findInThread.title": "チャット内を検索",
-  "commands.findInThread.description": "現在のチャット内のテキストを検索"
+  "commands.findInThread.description": "現在のチャット内のテキストを検索",
+  "navigation.sidebar.conversations.menu.moveToProject": "プロジェクトに移動",
+  "navigation.sidebar.conversations.menu.removeFromProject": "プロジェクトから削除",
+  "navigation.sidebar.conversations.menu.openInNewWindow": "新しいウィンドウで開く"
 }

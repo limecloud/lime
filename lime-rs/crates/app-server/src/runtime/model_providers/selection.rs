@@ -392,11 +392,11 @@ fn normalize_optional_thread_start_value(
 pub(in crate::runtime) fn is_executable_chat_model(metadata: &EnhancedModelMetadata) -> bool {
     let input_modalities = chat_wire_input_modalities(metadata);
     let snapshot = chat_wire_capability_snapshot(metadata, &input_modalities);
-    runtime_core::route_capability_gap(&chat_task_request(metadata), &snapshot).is_none()
+    model_routing_core::route_capability_gap(&chat_task_request(metadata), &snapshot).is_none()
 }
 
 fn chat_task_request(metadata: &EnhancedModelMetadata) -> ModelTaskRequest {
-    runtime_core::build_model_task_request(runtime_core::ModelTaskRequestInput {
+    model_routing_core::build_model_task_request(model_routing_core::ModelTaskRequestInput {
         task_kind: ModelTaskKind::Chat,
         source: ModelTaskSource::AgentTurn,
         provider_id: Some(metadata.provider_id.clone()),
@@ -438,10 +438,10 @@ fn chat_wire_capability_snapshot(
             .task_families
             .contains(&lime_core::models::model_registry::ModelTaskFamily::Chat)
     {
-        return runtime_core::chat_protocol_defaults(None).expect("chat catalog defaults");
+        return model_routing_core::chat_protocol_defaults(None).expect("chat catalog defaults");
     }
     let mut snapshot =
-        runtime_core::capability_snapshot_from_model_capabilities(&serde_json::json!({
+        model_routing_core::capability_snapshot_from_model_capabilities(&serde_json::json!({
             "taskFamilies": &metadata.task_families,
             "inputModalities": input_modalities,
             "outputModalities": &metadata.output_modalities,
@@ -992,7 +992,7 @@ mod tests {
     }
 
     #[test]
-    fn model_list_uses_codex_offset_pagination_boundaries() {
+    fn model_list_uses_host_offset_pagination_boundaries() {
         let catalogs = vec![catalog(
             "openai",
             0,

@@ -315,8 +315,7 @@ impl crate::AuthProviderResolver for AsyncRequestAuth {
     fn resolve<'a>(
         &'a self,
         _headers: &'a HeaderMap,
-    ) -> futures::future::BoxFuture<'a, Result<api::SharedAuthProvider, api::AuthError>>
-    {
+    ) -> futures::future::BoxFuture<'a, Result<api::SharedAuthProvider, api::AuthError>> {
         Box::pin(async move {
             tokio::task::yield_now().await;
             let id = self
@@ -350,9 +349,9 @@ impl api::AuthProvider for SelectedRequestAuth {
 #[tokio::test]
 async fn requests_await_auth_and_stop_assertion_redirects() -> anyhow::Result<()> {
     use exec_server::RouteAwareHttpClient;
+    use futures::StreamExt;
     use http_client::HttpClientFactory;
     use http_client::OutboundProxyPolicy;
-    use futures::StreamExt;
     use rmcp::transport::streamable_http_client::StreamableHttpClient;
     use std::collections::HashMap;
     use std::sync::Arc;

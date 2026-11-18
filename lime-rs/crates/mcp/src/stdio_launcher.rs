@@ -34,7 +34,7 @@ impl LocalStdioLauncher {
                         .map(|(name, value)| (name.into(), value.into()))
                         .collect(),
                 ),
-                config.env_vars(),
+                &config.env_vars(),
             )?);
 
         if let Some(cwd) = config.sanitized_cwd() {

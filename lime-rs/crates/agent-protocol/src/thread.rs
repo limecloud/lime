@@ -880,7 +880,7 @@ mod tests {
     }
 
     #[test]
-    fn thread_status_matches_codex_tagged_runtime_contract() {
+    fn thread_status_matches_host_tagged_runtime_contract() {
         let status = ThreadStatus::Active {
             active_flags: vec![ThreadActiveFlag::WaitingOnApproval],
         };
@@ -1088,7 +1088,7 @@ mod tests {
     }
 
     #[test]
-    fn subagent_activity_accepts_only_codex_current_wire_values() {
+    fn subagent_activity_accepts_only_host_current_wire_values() {
         let values = [
             (SubAgentActivityKind::Started, "started"),
             (SubAgentActivityKind::Interacted, "interacted"),

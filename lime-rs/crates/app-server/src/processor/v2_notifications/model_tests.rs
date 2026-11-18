@@ -110,7 +110,7 @@ fn maps_terminal_usage_to_direct_v2_notification_without_context_window() {
 }
 
 #[test]
-fn maps_provider_safety_buffering_to_direct_codex_notification() {
+fn maps_provider_safety_buffering_to_direct_host_notification() {
     let mut projector = V2NotificationProjector::default();
     let notifications = projector
         .project(event(
@@ -146,7 +146,7 @@ fn maps_provider_safety_buffering_to_direct_codex_notification() {
 }
 
 #[test]
-fn maps_model_reroute_once_per_turn_to_direct_codex_notification() {
+fn maps_model_reroute_once_per_turn_to_direct_host_notification() {
     let mut projector = V2NotificationProjector::default();
     let model_event = event(
         "model.rerouted",
@@ -179,7 +179,7 @@ fn maps_model_reroute_once_per_turn_to_direct_codex_notification() {
 }
 
 #[test]
-fn maps_model_verification_once_per_turn_to_direct_codex_notification() {
+fn maps_model_verification_once_per_turn_to_direct_host_notification() {
     let mut projector = V2NotificationProjector::default();
     let model_event = event(
         "model.verification",
@@ -209,7 +209,7 @@ fn maps_model_verification_once_per_turn_to_direct_codex_notification() {
 }
 
 #[test]
-fn maps_each_turn_moderation_metadata_update_to_exact_codex_notification() {
+fn maps_each_turn_moderation_metadata_update_to_exact_host_notification() {
     let mut projector = V2NotificationProjector::default();
     let first = projector
         .project(event(

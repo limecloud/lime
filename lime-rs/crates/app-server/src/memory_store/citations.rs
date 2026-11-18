@@ -66,7 +66,7 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn parses_codex_xml_memory_citation() {
+    fn parses_host_xml_memory_citation() {
         let parsed = parse_memory_citation(&json!(
             "<citation_entries>\nMEMORY.md:2-4|note=[preference]\n</citation_entries>\n<rollout_ids>\nthread-1\nthread-1\n</rollout_ids>"
         ))

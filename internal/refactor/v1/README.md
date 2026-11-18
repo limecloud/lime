@@ -133,3 +133,5 @@ V1-24 FileChange patchUpdated、typed `artifact/write` 与旧 runtime append 删
 本轮已获授权删除旧路径和直接重构，开发期不保留兼容层或旧插件迁移。直接修改现役调用，
 删除protocol/v0、agentSession旧入口、已退役provider crate及虚假transport声明，保留对应
 扫描守卫。新能力只能在current owner重建，不以恢复旧路满足planned清单。
+
+- [Codex method drift 69231e119b](./12-codex-method-drift-69231e119b.md)：当前上游 HEAD 的 99 项新增 method 分类与 P1 候选。

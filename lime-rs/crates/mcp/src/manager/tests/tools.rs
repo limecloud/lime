@@ -29,11 +29,11 @@ fn app_tool_authority_uses_exact_connector_link_and_account_requirement() {
 #[test]
 fn bridge_tool_timeout_preserves_explicit_and_startup_fallback_values() {
     let mut config = create_test_config();
-    config.startup_timeout = 120;
-    config.tool_timeout = Some(15);
+    config.startup_timeout_sec = Some(Duration::from_secs(120));
+    config.tool_timeout_sec = Some(Duration::from_secs(15));
     assert_eq!(bridge_tool_timeout(&config), Duration::from_secs(15));
 
-    config.tool_timeout = None;
+    config.tool_timeout_sec = None;
     assert_eq!(bridge_tool_timeout(&config), Duration::from_secs(120));
 }
 

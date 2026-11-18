@@ -95,7 +95,9 @@ pub(super) fn assert_editor_exit_and_reentry(output: &str) {
             "TUI must re-enter the alternate screen after the editor returns"
         );
     });
-    eprintln!("TUI_EDITOR_KEEP_SCREEN_OK alternate=preserved composer=visible stdin=foreground editor-exit=main");
+    eprintln!(
+        "TUI_EDITOR_KEEP_SCREEN_OK alternate=preserved composer=visible stdin=foreground editor-exit=main"
+    );
 }
 
 struct EditorChild(Box<dyn portable_pty::Child + Send + Sync>);
@@ -324,5 +326,7 @@ fn real_pty_external_editor_uses_resumed_thread_cwd() {
         );
         session.shutdown().await.unwrap();
     });
-    eprintln!("TUI_EDITOR_CWD_OK thread={thread_id} resume=canonical launch=different buffer=canonical draft=unicode first-arrow=preserved cold-read=exact terminal=restored");
+    eprintln!(
+        "TUI_EDITOR_CWD_OK thread={thread_id} resume=canonical launch=different buffer=canonical draft=unicode first-arrow=preserved cold-read=exact terminal=restored"
+    );
 }

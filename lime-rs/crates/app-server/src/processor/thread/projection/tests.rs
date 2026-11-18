@@ -194,7 +194,7 @@ fn canonical_item_metadata_does_not_cross_the_v2_boundary() {
 }
 
 #[test]
-fn canonical_mcp_output_projects_codex_result_shape_when_only_truncation_remains() {
+fn canonical_mcp_output_projects_host_result_shape_when_only_truncation_remains() {
     let mut thread = canonical_thread(false);
     thread.turns[0].items[0] = canonical::ThreadItem {
         session_id: canonical::SessionId::new("session-1"),
@@ -446,7 +446,7 @@ fn canonical_wait_projects_typed_agent_states_without_raw_output() {
 }
 
 #[test]
-fn provider_image_generation_projects_exact_codex_item() {
+fn provider_image_generation_projects_exact_host_item() {
     let mut thread = canonical_thread(false);
     thread.turns[0].items[0] = canonical::ThreadItem {
         session_id: canonical::SessionId::new("session-1"),
@@ -735,7 +735,7 @@ fn canonical_unknown_item_projects_typed_v2_diagnostic() {
 }
 
 #[test]
-fn approval_control_items_stay_out_of_codex_v2_thread_items() {
+fn approval_control_items_stay_out_of_host_v2_thread_items() {
     let mut thread = canonical_thread(false);
     let approval = canonical::ThreadItem {
         session_id: canonical::SessionId::new("session-1"),

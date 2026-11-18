@@ -126,7 +126,17 @@ fn default_runtime_options_for_session(
         workspace_root: workspace_root.clone(),
         project_root: workspace_root.or(working_dir),
         execution_strategy: setting(&["executionStrategy", "execution_strategy"]),
-        system_prompt: collaboration_mode.and_then(|mode| mode.settings.developer_instructions),
+        system_prompt: {
+            let instructions: Vec<String> = [
+                setting(&["developerInstructions"]),
+                collaboration_mode.and_then(|mode| mode.settings.developer_instructions),
+            ]
+            .into_iter()
+            .flatten()
+            .filter(|value| !value.trim().is_empty())
+            .collect();
+            (!instructions.is_empty()).then(|| instructions.join("\n\n"))
+        },
         metadata: runtime_metadata,
         ..RuntimeRequest::default()
     };
@@ -566,6 +576,36 @@ mod tests {
                 .is_none(),
             "typed collaboration mode must not leak into generic runtime metadata"
         );
+    }
+
+    #[test]
+    fn thread_developer_instructions_survive_collaboration_mode_changes() {
+        for (mode, expected) in [
+            (None, "Never commit changes."),
+            (
+                Some("Plan before editing."),
+                "Never commit changes.\n\nPlan before editing.",
+            ),
+            (Some(""), "Never commit changes."),
+        ] {
+            let mut metadata = json!({"developerInstructions": "Never commit changes."});
+            if let Some(instructions) = mode {
+                metadata["collaborationMode"] = json!({
+                    "mode": "plan",
+                    "settings": {
+                        "model": "current-model",
+                        "reasoning_effort": null,
+                        "developer_instructions": instructions
+                    }
+                });
+            }
+            let request = default_runtime_options_for_session(&session("agent.thread", metadata))
+                .expect("valid thread instructions")
+                .expect("defaults")
+                .runtime_request
+                .expect("runtime request");
+            assert_eq!(request.system_prompt.as_deref(), Some(expected));
+        }
     }
 
     #[test]

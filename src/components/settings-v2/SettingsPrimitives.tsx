@@ -32,7 +32,7 @@ const Header = styled.header`
     font-size: 28px;
     font-weight: 500;
     line-height: 1.2;
-    letter-spacing: -0.5px;
+    letter-spacing: normal;
   }
 `;
 

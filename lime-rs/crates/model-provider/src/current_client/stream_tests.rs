@@ -3,8 +3,8 @@ use super::{
     CurrentProviderError,
 };
 use futures::{Stream, StreamExt};
+use model_routing_core::CanonicalLlmEvent;
 use reqwest::{Client, Response};
-use runtime_core::CanonicalLlmEvent;
 use std::pin::Pin;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -156,7 +156,7 @@ async fn responses_verification_is_typed_deduplicated_and_fail_closed() {
     assert_eq!(verifications.len(), 1);
     assert_eq!(
         verifications[0],
-        [runtime_core::ModelVerification::TrustedAccessForCyber]
+        [model_routing_core::ModelVerification::TrustedAccessForCyber]
     );
 }
 
@@ -218,7 +218,7 @@ async fn responses_projects_hosted_web_search_without_local_tool_finish_reason()
     assert!(events.iter().any(|event| matches!(
         event,
         CanonicalLlmEvent::Finish {
-            reason: runtime_core::FinishReason::Stop,
+            reason: model_routing_core::FinishReason::Stop,
             ..
         }
     )));
@@ -262,7 +262,7 @@ async fn responses_projects_hosted_image_generation_exactly_once_and_finishes_st
         .filter_map(|event| match event {
             CanonicalLlmEvent::ToolResult {
                 id,
-                result: runtime_core::ToolResultValue::Json { value },
+                result: model_routing_core::ToolResultValue::Json { value },
                 provider_executed: Some(true),
                 ..
             } => Some((id, value)),
@@ -275,7 +275,7 @@ async fn responses_projects_hosted_image_generation_exactly_once_and_finishes_st
     assert!(events.iter().any(|event| matches!(
         event,
         CanonicalLlmEvent::Finish {
-            reason: runtime_core::FinishReason::Stop,
+            reason: model_routing_core::FinishReason::Stop,
             ..
         }
     )));
@@ -666,7 +666,7 @@ fn responses_completion_keeps_explicit_continuation_separate_from_finish_reason(
         assert_eq!(
             batch.events,
             vec![CanonicalLlmEvent::Finish {
-                reason: runtime_core::FinishReason::Stop,
+                reason: model_routing_core::FinishReason::Stop,
                 needs_follow_up,
                 usage: None,
                 response_id: Some("partial".into()),

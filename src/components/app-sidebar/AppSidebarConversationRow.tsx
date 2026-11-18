@@ -131,8 +131,9 @@ const ConversationItemLabel = styled.span`
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 16px;
+  font-weight: 430;
+  line-height: 24px;
 `;
 
 const ConversationItemActions = styled.div`
@@ -142,8 +143,8 @@ const ConversationItemActions = styled.div`
   bottom: 0;
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding-right: 2px;
+  gap: 6px;
+  padding-right: 8px;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.18s ease;
@@ -156,9 +157,9 @@ const ConversationItemActions = styled.div`
 `;
 
 const ConversationItemActionButton = styled.button`
-  width: 26px;
-  min-width: 26px;
-  height: 26px;
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
   border: none;
   border-radius: 7px;
   display: inline-flex;
@@ -182,8 +183,8 @@ const ConversationItemActionButton = styled.button`
   }
 
   svg {
-    width: 15px;
-    height: 15px;
+    width: 14px;
+    height: 14px;
   }
 `;
 

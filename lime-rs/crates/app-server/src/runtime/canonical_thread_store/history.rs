@@ -108,6 +108,12 @@ impl ProjectionStore {
             last_sequence,
             params.changes,
         )?;
+        // Items have their own incremental records. A normalized Turn also
+        // contains all prior Items for read projections; persisting that view
+        // on every delta makes a streamed response grow the rollout quadratically.
+        for turn in &mut params.changes.changed_turns {
+            *turn = turn_without_items(turn.clone());
+        }
         if last_sequence.is_some_and(|value| params.changes.sequence <= value.max(0) as u64) {
             return Err(error(format!(
                 "stale history sequence {} after {}",

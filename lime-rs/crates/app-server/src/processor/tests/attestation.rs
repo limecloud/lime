@@ -6,7 +6,7 @@ use app_server_protocol::{JsonRpcMessage, JsonRpcRequest, RequestId, METHOD_INIT
 use serde_json::json;
 
 #[tokio::test]
-async fn initialize_rejects_unimplemented_codex_attestation_capability() {
+async fn initialize_rejects_unimplemented_host_attestation_capability() {
     let processor = RequestProcessor::new(RuntimeCore::default());
     let messages = processor
         .handle_request(JsonRpcRequest::new(
@@ -36,7 +36,7 @@ async fn initialize_rejects_unimplemented_codex_attestation_capability() {
 }
 
 #[tokio::test]
-async fn initialize_rejects_malformed_codex_attestation_capability() {
+async fn initialize_rejects_malformed_host_attestation_capability() {
     let processor = RequestProcessor::new(RuntimeCore::default());
     let messages = processor
         .handle_request(JsonRpcRequest::new(

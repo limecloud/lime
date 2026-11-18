@@ -1,11 +1,11 @@
 use std::io::Cursor;
 
 use super::*;
-use image::metadata::Orientation;
 use image::GenericImageView;
 use image::ImageBuffer;
 use image::ImageDecoder;
 use image::Rgba;
+use image::metadata::Orientation;
 
 const TEST_RGB_ICC_PROFILE: &[u8] = b"0123456789abcdefRGB ";
 const TEST_CMYK_ICC_PROFILE: &[u8] = b"0123456789abcdefCMYK";

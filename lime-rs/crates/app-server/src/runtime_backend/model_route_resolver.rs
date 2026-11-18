@@ -9,7 +9,7 @@ use lime_agent::SessionProviderConfig;
 use lime_core::database::dao::api_key_provider::ProviderWithKeys;
 use lime_core::database::DbConnection;
 use lime_services::api_key_provider_service::ApiKeyProviderService;
-use runtime_core::{ModelRouteExclusion, RoutingResolution};
+use model_routing_core::{ModelRouteExclusion, RoutingResolution};
 use serde_json::Value;
 
 #[derive(Debug, Clone)]
@@ -159,7 +159,7 @@ pub(super) async fn assemble_chat_model_route(
             return Err("resolved_credential_unavailable".to_string());
         }
     }
-    let evidence = runtime_core::route_resolution_evidence_payloads(
+    let evidence = model_routing_core::route_resolution_evidence_payloads(
         requested_selection,
         &routing_resolution,
         model_registry.payload(),
@@ -1083,7 +1083,7 @@ mod tests {
             &provider.id,
             "scoped-route-model",
             &ref_a,
-            runtime_core::FailureClassification::Authentication,
+            model_routing_core::FailureClassification::Authentication,
         );
         let rerouted = assemble_chat_model_route(
             &db,

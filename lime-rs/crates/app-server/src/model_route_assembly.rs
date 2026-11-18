@@ -1,7 +1,7 @@
 use app_server_protocol::{ModelTaskRequest, ResolvedModelRoute};
 use lime_core::database::dao::api_key_provider::ProviderWithKeys;
-use runtime_core::ModelRouteProvider;
-pub(crate) use runtime_core::{DirectRouteConfig, ModelRouteSelection};
+use model_routing_core::ModelRouteProvider;
+pub(crate) use model_routing_core::{DirectRouteConfig, ModelRouteSelection};
 use serde_json::Value;
 use std::borrow::Cow;
 
@@ -14,7 +14,7 @@ pub(crate) fn resolved_route_from_task_with_credential(
     direct_config: Option<DirectRouteConfig<'_>>,
 ) -> ResolvedModelRoute {
     let route_provider = provider.map(|provider| model_route_provider(provider, credential_ref));
-    runtime_core::resolved_route_from_task(
+    model_routing_core::resolved_route_from_task(
         task_request,
         selection,
         routing_payload,

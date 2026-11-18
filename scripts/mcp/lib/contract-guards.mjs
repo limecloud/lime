@@ -116,7 +116,6 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
     "lime-rs/crates/core/src/models/mcp_model.rs",
     "lime-rs/crates/core/src/database/dao/mcp.rs",
     "lime-rs/crates/mcp/src/types.rs",
-    "lime-rs/crates/mcp/src/mcp_types.rs",
     "src/lib/api/mcpTypes.ts",
     "src/lib/crashDiagnostic.ts",
   ]) {

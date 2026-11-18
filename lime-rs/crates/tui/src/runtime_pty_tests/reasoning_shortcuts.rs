@@ -178,8 +178,8 @@ fn exercise_ultra_prompt(
             },
         );
         eprintln!(
-        "TUI_EFFORT_ANIMATION_OK palette=probed ignition=tinted ultra=assembled status=restored frames=shared"
-    );
+            "TUI_EFFORT_ANIMATION_OK palette=probed ignition=tinted ultra=assembled status=restored frames=shared"
+        );
     }
     writer
         .write_all(b"\x1b[200~/status\x1b[201~\x05\r")

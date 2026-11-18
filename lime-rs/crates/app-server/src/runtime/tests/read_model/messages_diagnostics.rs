@@ -430,7 +430,7 @@ async fn usage_limit_failure_preserves_structured_terminal_reason() {
 }
 
 #[tokio::test]
-async fn runtime_failure_updates_bound_thread_goal_with_codex_status() {
+async fn runtime_failure_updates_bound_thread_goal_with_host_status() {
     let cases: Vec<(
         Arc<dyn ExecutionBackend>,
         &str,

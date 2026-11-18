@@ -21,12 +21,12 @@ use agent_protocol::ImageDetail;
 use async_stream::stream;
 use futures::future::BoxFuture;
 use futures::{Stream, StreamExt};
-use reqwest::{Client, Response, StatusCode};
-pub use runtime_core::{
+pub use model_routing_core::{
     CanonicalLlmEvent, FailureClassification, FinishReason, FreeformToolFormat, GenerationOptions,
     ModelRerouteReason, ModelVerification, ProviderMetadata, ToolResultValue, Usage,
 };
-use runtime_core::{CanonicalRequest, CanonicalRole, CanonicalToolDefinition, ContentPart};
+use model_routing_core::{CanonicalRequest, CanonicalRole, CanonicalToolDefinition, ContentPart};
+use reqwest::{Client, Response, StatusCode};
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -104,7 +104,7 @@ const TURN_ID_METADATA_KEY: &str = "turn_id";
 const FORKED_FROM_THREAD_ID_METADATA_KEY: &str = "forked_from_thread_id";
 const REQUEST_KIND_METADATA_KEY: &str = "request_kind";
 const HISTORY_INGEST_REQUESTED_METADATA_KEY: &str = "history_ingest_requested";
-const X_CODEX_TURN_METADATA_KEY: &str = "x-codex-turn-metadata";
+const X_LIME_TURN_METADATA_KEY: &str = "x-lime-turn-metadata";
 const RESERVED_TURN_METADATA_KEYS: &[&str] = &[
     SESSION_ID_METADATA_KEY,
     THREAD_ID_METADATA_KEY,
@@ -112,7 +112,7 @@ const RESERVED_TURN_METADATA_KEYS: &[&str] = &[
     FORKED_FROM_THREAD_ID_METADATA_KEY,
     REQUEST_KIND_METADATA_KEY,
     HISTORY_INGEST_REQUESTED_METADATA_KEY,
-    X_CODEX_TURN_METADATA_KEY,
+    X_LIME_TURN_METADATA_KEY,
 ];
 
 #[derive(Clone, Debug, PartialEq)]
@@ -356,7 +356,7 @@ impl CurrentProviderRequest {
 
 fn canonical_message(
     message: &CurrentProviderMessage,
-) -> Result<runtime_core::CanonicalMessage, CurrentProviderError> {
+) -> Result<model_routing_core::CanonicalMessage, CurrentProviderError> {
     let role = match message.role {
         CurrentProviderRole::User => CanonicalRole::User,
         CurrentProviderRole::Developer => CanonicalRole::Developer,
@@ -368,7 +368,7 @@ fn canonical_message(
         .iter()
         .map(canonical_content)
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(runtime_core::CanonicalMessage {
+    Ok(model_routing_core::CanonicalMessage {
         id: None,
         role,
         content,
@@ -2976,7 +2976,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn responses_websocket_ignores_verification_for_codex_labeled_third_party_route() {
+    async fn responses_websocket_ignores_verification_for_host_labeled_third_party_route() {
         let (base_url, _capture, server) = spawn_websocket_fixture().await;
         let mut runtime_config = config(Some(RuntimeProviderProtocol::Responses));
         runtime_config.provider_selector = Some("codex".to_string());

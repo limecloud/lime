@@ -1,10 +1,10 @@
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use config::types::AuthKeyringBackendKind;
+use futures::FutureExt;
 use keyring_store::CredentialStoreError;
 use keyring_store::KeyringStore;
 use keyring_store::tests::MockKeyringStore;
-use futures::FutureExt;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use tracing_test::traced_test;

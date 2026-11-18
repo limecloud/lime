@@ -1,7 +1,7 @@
 use super::common::{
     canonical_generation_prompt, canonical_media_references, non_empty, ProtocolMappingError,
 };
-use runtime_core::CanonicalRequest;
+use model_routing_core::CanonicalRequest;
 use serde_json::{json, Map, Value};
 
 const STRING_METADATA_FIELDS: &[&str] = &[

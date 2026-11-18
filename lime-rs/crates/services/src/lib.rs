@@ -60,6 +60,7 @@ pub mod model_registry_service;
 pub mod prompt_service;
 // 依赖其他 services 的服务
 pub mod ai_summary_service;
+pub mod general_chat;
 pub mod session_context_service;
 
 // 依赖 providers 的服务

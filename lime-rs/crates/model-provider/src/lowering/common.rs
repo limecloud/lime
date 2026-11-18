@@ -1,5 +1,5 @@
 use app_server_protocol::ProtocolKind;
-use runtime_core::{CanonicalRequest, ContentPart};
+use model_routing_core::{CanonicalRequest, ContentPart};
 use serde_json::Value;
 use std::fmt;
 

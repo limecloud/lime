@@ -1,6 +1,6 @@
 use crate::model_route;
 use crate::TaskErrorRecord;
-use runtime_core::{CanonicalLlmEvent, FailureClassification, FinishReason};
+use model_routing_core::{CanonicalLlmEvent, FailureClassification, FinishReason};
 use serde_json::{json, Value};
 
 pub(crate) fn image_running_payload_patch(

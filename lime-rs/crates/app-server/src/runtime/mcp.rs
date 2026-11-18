@@ -376,7 +376,7 @@ fn normalize_mcp_resource_identity(
 fn mcp_resource_request_meta(connector_id: Option<&str>) -> Option<serde_json::Value> {
     connector_id.map(|connector_id| {
         serde_json::json!({
-            "x-codex-turn-metadata": {
+            "x-lime-turn-metadata": {
                 "mcp_request_meta": {
                     "selected_connector_ids": [connector_id],
                 },
@@ -625,7 +625,7 @@ mod resource_read_tests {
     }
 
     #[test]
-    fn origin_resource_rejects_entries_larger_than_codex_bound() {
+    fn origin_resource_rejects_entries_larger_than_host_bound() {
         let mut item = origin_item(0);
         let ThreadItemPayload::McpToolCall {
             app_context: Some(app_context),
@@ -639,11 +639,11 @@ mod resource_read_tests {
     }
 
     #[test]
-    fn connector_meta_matches_codex_selected_connector_shape_for_non_origin_reads() {
+    fn connector_meta_matches_host_selected_connector_shape_for_non_origin_reads() {
         assert_eq!(
             mcp_resource_request_meta(Some("calendar")),
             Some(serde_json::json!({
-                "x-codex-turn-metadata": {
+                "x-lime-turn-metadata": {
                     "mcp_request_meta": {
                         "selected_connector_ids": ["calendar"],
                     },

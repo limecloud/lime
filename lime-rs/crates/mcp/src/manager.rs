@@ -26,6 +26,8 @@
 
 #![allow(dead_code)]
 
+use crate::auth_status::McpServerAuthExt;
+
 use lime_core::DynEmitter;
 use rmcp::model::{
     CancelledNotification, CancelledNotificationParam, ClientNotification, ClientRequest,
@@ -94,6 +96,9 @@ pub struct McpClientManager {
     /// 键为服务器名称，值为客户端包装器。
     clients: Arc<RwLock<HashMap<String, McpClientWrapper>>>,
 
+    /// 按精确身份登记的 MCP server 配置。
+    catalog: Arc<RwLock<crate::McpCatalog>>,
+
     /// 工具定义缓存
     ///
     /// 缓存所有运行中服务器的工具定义。
@@ -130,11 +135,21 @@ pub struct McpRuntimeOwner {
     pub thread_id: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct McpRuntimeServerSpec {
     pub name: String,
     pub plugin_id: Option<String>,
     pub config: McpServerConfig,
+}
+
+impl McpRuntimeServerSpec {
+    pub fn from_resolved(server: &crate::ResolvedMcpServer) -> Self {
+        Self {
+            name: server.name().to_string(),
+            plugin_id: server.source().plugin_id().map(str::to_string),
+            config: server.config().clone(),
+        }
+    }
 }
 
 /// 当前运行中的 MCP bridge 快照。
@@ -173,6 +188,7 @@ impl McpClientManager {
         let (server_notifications, _) = broadcast::channel(256);
         Self {
             clients: Arc::new(RwLock::new(HashMap::new())),
+            catalog: Arc::new(RwLock::new(crate::McpCatalog::new())),
             tool_cache: Arc::new(RwLock::new(None)),
             emitter,
             oauth_registry: McpOAuthRegistry::new(),
@@ -202,6 +218,7 @@ impl McpClientManager {
         let (server_notifications, _) = broadcast::channel(256);
         Self {
             clients: Arc::new(RwLock::new(HashMap::new())),
+            catalog: Arc::new(RwLock::new(crate::McpCatalog::new())),
             tool_cache: Arc::new(RwLock::new(None)),
             emitter,
             oauth_registry: McpOAuthRegistry::new(),
@@ -353,8 +370,19 @@ impl McpClientManager {
     /// 如果服务器正在运行，返回 Some(配置的克隆)；
     /// 否则返回 None。
     pub async fn get_client_config(&self, name: &str) -> Option<McpServerConfig> {
-        let clients = self.clients.read().await;
-        clients.get(name).map(|c| c.config.clone())
+        self.catalog
+            .read()
+            .await
+            .server(&crate::McpServerKey::unscoped(name))
+            .map(|server| server.config().clone())
+    }
+
+    /// 已登记的 MCP server 快照，按精确身份排序。
+    pub async fn registered_servers(&self) -> Vec<crate::ResolvedMcpServer> {
+        self.catalog
+            .read()
+            .await
+            .resolve(crate::McpServerExposure::Legacy)
     }
 
     /// 获取指定服务器的能力信息（如果存在）
@@ -382,14 +410,21 @@ impl McpClientManager {
     /// # Returns
     ///
     /// 如果服务器已存在，返回错误；否则添加成功。
-    pub async fn add_client(&self, name: String, client: McpClientWrapper) -> Result<(), McpError> {
+    pub async fn add_client(
+        &self,
+        name: String,
+        mut client: McpClientWrapper,
+    ) -> Result<(), McpError> {
         crate::naming::validate_server_name(&name).map_err(McpError::ConfigError)?;
         let mut clients = self.clients.write().await;
         if clients.contains_key(&name) {
             return Err(McpError::ServerAlreadyRunning(name));
         }
         debug!(server_name = %name, "添加客户端到连接池");
-        clients.insert(name, client);
+        let config = client.config.take().unwrap_or_default();
+        clients.insert(name.clone(), client);
+        drop(clients);
+        self.catalog.write().await.add_config(name, config);
         Ok(())
     }
 
@@ -409,6 +444,13 @@ impl McpClientManager {
         if removed.is_some() {
             debug!(server_name = %name, "从连接池移除客户端");
         }
+        drop(clients);
+        if removed.is_some() {
+            self.catalog
+                .write()
+                .await
+                .remove(&crate::McpServerKey::unscoped(name));
+        }
         removed
     }
 
@@ -427,10 +469,12 @@ impl McpClientManager {
         name: &str,
         fallback_config: Option<&McpServerConfig>,
     ) -> McpServerRuntimeStatus {
+        let config = self.get_client_config(name).await;
         let clients = self.clients.read().await;
         let running_snapshot = clients
             .get(name)
-            .map(|wrapper| (wrapper.config.clone(), wrapper.server_info.clone()));
+            .zip(config)
+            .map(|(wrapper, config)| (config, wrapper.server_info.clone()));
         drop(clients);
 
         if let Some((config, server_info)) = running_snapshot {
@@ -448,20 +492,9 @@ impl McpClientManager {
             );
         }
 
-        let config = fallback_config.cloned().unwrap_or(McpServerConfig {
-            transport: McpServerTransport::default(),
-            environment_id: crate::DEFAULT_MCP_SERVER_ENVIRONMENT_ID.to_string(),
-            enabled: false,
-            startup_timeout: 30,
-            tool_timeout: None,
-            enabled_tools: None,
-            disabled_tools: Vec::new(),
-            required: false,
-            supports_parallel_tool_calls: false,
-            scopes: None,
-            oauth: None,
-            oauth_resource: None,
-        });
+        let config = fallback_config
+            .cloned()
+            .unwrap_or(McpServerConfig::default());
         let has_credentials = self
             .oauth_registry
             .has_credentials(name, &config)
@@ -510,7 +543,7 @@ impl McpClientManager {
             startup_timeout: config.startup_timeout_secs(),
             tool_timeout: config.tool_timeout_secs(),
             enabled_tools: config.enabled_tools.clone(),
-            disabled_tools: config.disabled_tools.clone(),
+            disabled_tools: config.disabled_tools.clone().unwrap_or_default(),
             server_info,
             auth_status: config.auth_status_with_credentials(has_credentials),
         }
@@ -537,6 +570,12 @@ impl McpClientManager {
                 .push(tool);
         }
 
+        let configs = self
+            .registered_servers()
+            .await
+            .into_iter()
+            .map(|server| (server.name().to_string(), server.config().clone()))
+            .collect::<HashMap<_, _>>();
         let clients = self.clients.read().await;
         let mut snapshots = Vec::new();
         for (server_name, wrapper) in clients.iter() {
@@ -556,17 +595,20 @@ impl McpClientManager {
                 .filter(|value| !value.trim().is_empty())
                 .unwrap_or_else(|| format!("MCP server {server_name} tools"));
 
+            let Some(config) = configs.get(server_name) else {
+                continue;
+            };
             snapshots.push(McpBridgeSnapshot {
                 server_name: server_name.clone(),
                 plugin_id: None,
-                environment_id: wrapper.config.environment_id.clone(),
+                environment_id: config.environment_id.clone(),
                 description,
                 tools: server_tools,
-                auth_scopes: wrapper.config.oauth_scopes(),
-                supports_parallel_tool_calls: wrapper.config.supports_parallel_tool_calls,
+                auth_scopes: config.oauth_scopes(),
+                supports_parallel_tool_calls: config.supports_parallel_tool_calls,
                 running_service,
                 manager: Arc::clone(self),
-                tool_timeout: bridge_tool_timeout(&wrapper.config),
+                tool_timeout: bridge_tool_timeout(config),
             });
         }
         snapshots.sort_by(|left, right| left.server_name.cmp(&right.server_name));

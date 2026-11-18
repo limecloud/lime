@@ -122,9 +122,9 @@ export const SearchButton = styled.button<{
   display: flex;
   align-items: center;
   gap: 8px;
-  width: ${({ $inline }) => ($inline ? "26px" : "100%")};
+  width: ${({ $inline }) => ($inline ? "28px" : "100%")};
   flex-shrink: 0;
-  height: 30px;
+  height: ${({ $inline }) => ($inline ? "28px" : "30px")};
   border-radius: 10px;
   border: none;
   background: transparent;
@@ -138,6 +138,12 @@ export const SearchButton = styled.button<{
     color 0.18s ease,
     box-shadow 0.18s ease;
   box-shadow: none;
+
+  svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
 
   &:hover {
     border-color: ${({ $inline }) =>
@@ -492,7 +498,7 @@ export const NavButton = styled.button<{
 }>`
   display: flex;
   align-items: center;
-  gap: ${({ $collapsed }) => ($collapsed ? "0" : "10px")};
+  gap: ${({ $collapsed }) => ($collapsed ? "0" : "8px")};
   width: 100%;
   height: ${({ $collapsed }) => ($collapsed ? "40px" : "30px")};
   border: none;
@@ -535,8 +541,8 @@ export const NavButton = styled.button<{
 export const NavLabel = styled.span<{ $collapsed?: boolean }>`
   flex: 1;
   text-align: left;
-  font-size: 13px;
-  line-height: 1;
+  font-size: 14px;
+  line-height: 21px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

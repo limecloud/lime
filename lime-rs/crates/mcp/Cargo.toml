@@ -10,6 +10,10 @@ repository.workspace = true
 doctest = false
 
 [dependencies]
+rmcp-client = { path = "../rmcp-client" }
+lime-utils-path-uri.workspace = true
+config = { path = "../config-upstream" }
+anyhow.workspace = true
 lime-core.workspace = true
 agent-protocol.workspace = true
 tool-runtime.workspace = true
@@ -30,6 +34,7 @@ url.workspace = true
 libc = "0.2"
 
 [dev-dependencies]
+pretty_assertions.workspace = true
 # In-memory protocol fixtures act as servers; production only enables the client.
 rmcp = { workspace = true, features = ["server"] }
 futures.workspace = true

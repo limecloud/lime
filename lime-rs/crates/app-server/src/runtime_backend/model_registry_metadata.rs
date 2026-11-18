@@ -111,7 +111,7 @@ pub(super) async fn resolve_runtime_model_registry_metadata(
                 .and_then(Value::as_str),
         );
         let capability_snapshot = config.model_capabilities.as_ref().map(|value| {
-            let snapshot = runtime_core::capability_snapshot_from_model_capabilities(value);
+            let snapshot = model_routing_core::capability_snapshot_from_model_capabilities(value);
             snapshot
         });
         let supports_custom_tools = capability_snapshot.as_ref().is_some_and(|snapshot| {

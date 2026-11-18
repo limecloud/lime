@@ -2,7 +2,7 @@ use super::common::{
     canonical_generation_prompt, non_empty, unsupported_option, ProtocolMappingError,
 };
 use app_server_protocol::ProtocolKind;
-use runtime_core::CanonicalRequest;
+use model_routing_core::CanonicalRequest;
 use serde_json::{json, Map, Value};
 
 const UNSUPPORTED_OPTIONS: &[&str] = &["end_image_url", "seed", "generate_audio", "camera_fixed"];

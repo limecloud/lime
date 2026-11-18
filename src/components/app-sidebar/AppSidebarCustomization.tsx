@@ -28,13 +28,23 @@ import {
   SearchButton,
 } from "./AppSidebar.styles";
 
-const Title = styled.h2`
+const Title = styled.h1`
   flex: 1;
   min-width: 0;
-  padding: 5px 7px;
-  font-size: 14px;
-  font-weight: 650;
+  padding: 5px 12px;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 24px;
   color: var(--sidebar-foreground);
+`;
+
+const CustomizationNavButton = styled(NavButton)`
+  gap: 8px;
+`;
+
+const CustomizationNavLabel = styled(NavLabel)`
+  font-size: 14px;
+  line-height: 21px;
 `;
 
 const Section = styled.div`
@@ -200,7 +210,7 @@ export function AppSidebarCustomization({
       </HeaderArea>
       <MenuScroll data-testid="app-sidebar-customization">
         {entries.map((entry) => (
-          <NavButton
+          <CustomizationNavButton
             key={entry.id}
             type="button"
             $active={entry.active}
@@ -208,9 +218,9 @@ export function AppSidebarCustomization({
             onClick={entry.onClick}
             data-testid={`app-sidebar-customization-${entry.id}`}
           >
-            <entry.icon />
-            <NavLabel>{entry.label}</NavLabel>
-          </NavButton>
+            <entry.icon size={16} />
+            <CustomizationNavLabel>{entry.label}</CustomizationNavLabel>
+          </CustomizationNavButton>
         ))}
         <Section>
           <SectionLabel>
@@ -223,7 +233,7 @@ export function AppSidebarCustomization({
                 .includes(query.toLocaleLowerCase()),
             )
             .map((plugin) => (
-              <NavButton
+              <CustomizationNavButton
                 key={plugin.id}
                 type="button"
                 $active={
@@ -244,11 +254,11 @@ export function AppSidebarCustomization({
                 }
                 data-testid="app-sidebar-installed-plugin"
               >
-                <Boxes />
-                <NavLabel>
+                <Boxes size={16} />
+                <CustomizationNavLabel>
                   {plugin.interface?.displayName || plugin.name}
-                </NavLabel>
-              </NavButton>
+                </CustomizationNavLabel>
+              </CustomizationNavButton>
             ))}
           {status !== "ready" || plugins.length === 0 ? (
             <SectionLabel role="status">

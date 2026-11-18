@@ -391,7 +391,7 @@ fn provider_usage_preserves_failed_usage_without_double_counting_completion() {
 }
 
 #[test]
-fn goal_token_delta_matches_codex_billable_formula() {
+fn goal_token_delta_matches_host_billable_formula() {
     let baseline = TokenUsageSnapshot {
         input_tokens: 100,
         cached_input_tokens: 30,

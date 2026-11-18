@@ -1,5 +1,5 @@
 use super::lowering::responses_message;
-use runtime_core::{
+use model_routing_core::{
     CanonicalMessage, CanonicalRole, ContentPart, ProviderMetadata, ToolResultValue,
 };
 use serde_json::json;

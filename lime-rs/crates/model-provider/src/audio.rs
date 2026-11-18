@@ -4,9 +4,9 @@
 //! request lowering plus the provider HTTP boundary.
 
 use crate::lowering::{build_openai_audio_speech_body, ProtocolMappingError};
+use model_routing_core::CanonicalRequest;
 use reqwest::header::{HeaderName, HeaderValue, CONTENT_TYPE};
 use reqwest::{Client, StatusCode};
-use runtime_core::CanonicalRequest;
 use serde_json::{json, Value};
 use std::fmt;
 use std::time::Duration;

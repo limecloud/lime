@@ -465,5 +465,8 @@
   "commands.newProject.title": "新增專案",
   "commands.newProject.description": "在 Lime 中建立新專案",
   "commands.findInThread.title": "在工作階段中尋找",
-  "commands.findInThread.description": "在目前工作階段中尋找文字"
+  "commands.findInThread.description": "在目前工作階段中尋找文字",
+  "navigation.sidebar.conversations.menu.moveToProject": "移至專案",
+  "navigation.sidebar.conversations.menu.removeFromProject": "從專案中移除",
+  "navigation.sidebar.conversations.menu.openInNewWindow": "在新視窗中開啟"
 }

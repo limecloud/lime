@@ -270,7 +270,7 @@ fn runtime_reroute_policy_rejects_direct_hard_and_partial_failures() {
     let transport = lime_agent::ReplyAttemptError::provider_failure(
         "transport failed",
         false,
-        Some(runtime_core::FailureClassification::Transport),
+        Some(model_routing_core::FailureClassification::Transport),
         true,
     );
     let route_exclusion = runtime_route_exclusion(&selection, false, None, &transport)
@@ -291,19 +291,19 @@ fn runtime_reroute_policy_rejects_direct_hard_and_partial_failures() {
         lime_agent::ReplyAttemptError::provider_failure(
             "authentication failed",
             false,
-            Some(runtime_core::FailureClassification::Authentication),
+            Some(model_routing_core::FailureClassification::Authentication),
             false,
         ),
         lime_agent::ReplyAttemptError::provider_failure(
             "permission denied",
             false,
-            Some(runtime_core::FailureClassification::Permission),
+            Some(model_routing_core::FailureClassification::Permission),
             false,
         ),
         lime_agent::ReplyAttemptError::provider_failure(
             "quota exhausted",
             false,
-            Some(runtime_core::FailureClassification::Quota),
+            Some(model_routing_core::FailureClassification::Quota),
             false,
         ),
     ] {
@@ -315,7 +315,7 @@ fn runtime_reroute_policy_rejects_direct_hard_and_partial_failures() {
     let partial = lime_agent::ReplyAttemptError::provider_failure(
         "partial output failed",
         true,
-        Some(runtime_core::FailureClassification::Transport),
+        Some(model_routing_core::FailureClassification::Transport),
         true,
     );
     assert!(runtime_route_exclusion(&selection, false, Some(credential_ref), &partial).is_none());

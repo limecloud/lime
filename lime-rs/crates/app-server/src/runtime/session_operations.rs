@@ -540,6 +540,7 @@ fn apply_session_metadata_mutation(
         .as_object()
         .cloned()
         .ok_or_else(|| "thread metadata must be a JSON object".to_string())?;
+    let previous_metadata = metadata.clone();
     let result = match mutation {
         SessionMetadataMutation::ShellEnvironmentPolicy { policy, overrides } => {
             let previous = metadata.clone();
@@ -591,6 +592,11 @@ fn apply_session_metadata_mutation(
             SessionMetadataMutationResult::WorkingDirectory
         }
     };
+    // Reapplying current settings is not a metadata edit. In particular it must
+    // not rescan the durable history while holding the global runtime lock.
+    if metadata == previous_metadata {
+        return Ok(result);
+    }
     let reference = updated_session.business_object_ref.get_or_insert_with(|| {
         app_server_protocol::BusinessObjectRef {
             kind: "agent.thread".to_string(),

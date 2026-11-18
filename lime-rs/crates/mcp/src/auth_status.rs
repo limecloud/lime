@@ -32,14 +32,22 @@ pub struct McpServerAuthActionPlan {
     pub client_id: Option<String>,
 }
 
-impl McpServerConfig {
-    pub fn has_oauth_settings(&self) -> bool {
+pub trait McpServerAuthExt {
+    fn has_oauth_settings(&self) -> bool;
+    fn has_unsupported_oauth_runtime_settings(&self) -> bool;
+    fn auth_status(&self) -> McpServerAuthStatus;
+    fn oauth_scopes(&self) -> Option<Vec<String>>;
+    fn auth_status_with_credentials(&self, has_credentials: bool) -> McpServerAuthStatus;
+}
+
+impl McpServerAuthExt for McpServerConfig {
+    fn has_oauth_settings(&self) -> bool {
         self.oauth.is_some()
             || non_empty_string(self.oauth_resource.as_deref()).is_some()
             || configured_scopes(self).is_some()
     }
 
-    pub fn has_unsupported_oauth_runtime_settings(&self) -> bool {
+    fn has_unsupported_oauth_runtime_settings(&self) -> bool {
         self.oauth
             .as_ref()
             .and_then(|oauth| non_empty_string(oauth.client_id.as_deref()))
@@ -47,15 +55,15 @@ impl McpServerConfig {
             || non_empty_string(self.oauth_resource.as_deref()).is_some()
     }
 
-    pub fn auth_status(&self) -> McpServerAuthStatus {
+    fn auth_status(&self) -> McpServerAuthStatus {
         self.auth_status_with_credentials(false)
     }
 
-    pub fn oauth_scopes(&self) -> Option<Vec<String>> {
+    fn oauth_scopes(&self) -> Option<Vec<String>> {
         configured_scopes(self)
     }
 
-    pub fn auth_status_with_credentials(&self, has_credentials: bool) -> McpServerAuthStatus {
+    fn auth_status_with_credentials(&self, has_credentials: bool) -> McpServerAuthStatus {
         if self.has_oauth_settings() {
             let unsupported = self.has_unsupported_oauth_runtime_settings();
             if !unsupported && has_credentials {
@@ -152,20 +160,23 @@ mod tests {
                 bearer_token_env_var: None,
                 http_headers: None,
                 env_http_headers: None,
+                http_headers_helper: None,
             },
             environment_id: crate::types::DEFAULT_MCP_SERVER_ENVIRONMENT_ID.to_string(),
             enabled: true,
-            startup_timeout: 30,
-            tool_timeout: None,
+            startup_timeout_sec: Some(std::time::Duration::from_secs(30)),
+            tool_timeout_sec: None,
             enabled_tools: None,
-            disabled_tools: Vec::new(),
+            disabled_tools: None,
             required: false,
             supports_parallel_tool_calls: false,
             scopes: Some(vec!["search.read".to_string(), " ".to_string()]),
             oauth: Some(crate::types::McpServerOAuthConfig {
                 client_id: Some("lime-client".to_string()),
+                ..Default::default()
             }),
             oauth_resource: Some("https://example.com".to_string()),
+            ..Default::default()
         }
     }
 
@@ -244,18 +255,20 @@ mod tests {
                     "trace-1".to_string(),
                 )])),
                 env_http_headers: None,
+                http_headers_helper: None,
             },
             environment_id: crate::types::DEFAULT_MCP_SERVER_ENVIRONMENT_ID.to_string(),
             enabled: true,
-            startup_timeout: 30,
-            tool_timeout: None,
+            startup_timeout_sec: Some(std::time::Duration::from_secs(30)),
+            tool_timeout_sec: None,
             enabled_tools: None,
-            disabled_tools: Vec::new(),
+            disabled_tools: None,
             required: false,
             supports_parallel_tool_calls: false,
             scopes: None,
             oauth: None,
             oauth_resource: None,
+            ..Default::default()
         };
 
         let status = config.auth_status();

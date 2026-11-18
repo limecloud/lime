@@ -4,6 +4,20 @@ pub(super) fn scan_rollout_reader(
     reader: impl BufRead,
     path: &Path,
 ) -> Result<RolloutScan, String> {
+    let mut history = Vec::new();
+    let mut scan = scan_rollout_reader_with_history(reader, path, |_, record| {
+        history.push(record);
+        Ok(())
+    })?;
+    scan.history = history;
+    Ok(scan)
+}
+
+pub(super) fn scan_rollout_reader_with_history(
+    reader: impl BufRead,
+    path: &Path,
+    mut on_history: impl FnMut(&Thread, RolloutHistoryRecord) -> Result<(), String>,
+) -> Result<RolloutScan, String> {
     let mut lines = reader.lines();
     let first = lines
         .next()
@@ -42,7 +56,7 @@ pub(super) fn scan_rollout_reader(
         initial_thread.updated_at_ms,
         &initial_thread.metadata,
     )?;
-    let mut history = Vec::new();
+    let mut last_sequence = None;
     let mut event_ids = std::collections::HashSet::new();
     for line in lines {
         let line = line
@@ -78,27 +92,26 @@ pub(super) fn scan_rollout_reader(
                     }
                 }
                 if runtime_events.first().is_some_and(|event| {
-                    history.last().is_some_and(|record: &RolloutHistoryRecord| {
-                        event.sequence <= record.sequence
-                    })
+                    last_sequence.is_some_and(|sequence| event.sequence <= sequence)
                 }) {
                     return Err("rollout runtime event batches overlap".to_string());
                 }
-                if history
-                    .last()
-                    .is_some_and(|record: &RolloutHistoryRecord| record.sequence >= sequence)
-                {
+                if last_sequence.is_some_and(|previous| previous >= sequence) {
                     return Err(format!(
                         "rollout history sequence is not strictly increasing: {}",
                         path.display()
                     ));
                 }
-                history.push(RolloutHistoryRecord {
-                    sequence,
-                    fingerprint,
-                    changes,
-                    runtime_events,
-                });
+                last_sequence = Some(sequence);
+                on_history(
+                    &initial_thread,
+                    RolloutHistoryRecord {
+                        sequence,
+                        fingerprint,
+                        changes,
+                        runtime_events,
+                    },
+                )?;
             }
             RolloutRecord::ThreadMetadata {
                 schema_version,
@@ -142,7 +155,7 @@ pub(super) fn scan_rollout_reader(
         initial_thread,
         recency_at_ms,
         metadata_digest,
-        history,
+        history: Vec::new(),
     })
 }
 

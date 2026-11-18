@@ -5,13 +5,13 @@ use tool_output::{anthropic_tool_content, tool_media_observations};
 
 use super::{
     REQUEST_KIND_METADATA_KEY, SESSION_ID_METADATA_KEY, THREAD_ID_METADATA_KEY,
-    TURN_ID_METADATA_KEY, X_CODEX_TURN_METADATA_KEY,
+    TURN_ID_METADATA_KEY, X_LIME_TURN_METADATA_KEY,
 };
 use crate::provider_capabilities::ProviderCapabilities;
 use crate::provider_stream::RuntimeReplyProviderRequestWireShape;
 use crate::runtime_provider::RuntimeProviderConfig;
 use agent_protocol::ImageDetail;
-use runtime_core::{
+use model_routing_core::{
     CanonicalRequest, CanonicalRole, CanonicalToolDefinition, ContentPart, ToolResultValue,
 };
 use serde_json::{json, Map, Value};
@@ -238,7 +238,7 @@ fn responses_client_metadata(request: &CanonicalRequest) -> Option<Map<String, V
             Value::String(turn_id.to_string()),
         ),
         (
-            X_CODEX_TURN_METADATA_KEY.to_string(),
+            X_LIME_TURN_METADATA_KEY.to_string(),
             Value::String(serialized),
         ),
     ]);
@@ -479,7 +479,7 @@ fn apply_service_tier(object: &mut Map<String, Value>, config: &RuntimeProviderC
 }
 
 fn chat_message(
-    message: &runtime_core::CanonicalMessage,
+    message: &model_routing_core::CanonicalMessage,
     media_payloads: &BTreeMap<String, String>,
 ) -> Vec<Value> {
     match message.role {
@@ -748,7 +748,7 @@ fn responses_input_content(
 }
 
 fn anthropic_message(
-    message: &runtime_core::CanonicalMessage,
+    message: &model_routing_core::CanonicalMessage,
     media_payloads: &BTreeMap<String, String>,
 ) -> Vec<Value> {
     let role = match message.role {

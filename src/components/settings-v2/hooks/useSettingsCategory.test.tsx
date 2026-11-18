@@ -97,21 +97,24 @@ describe("useSettingsCategory", () => {
     expect(archivedItem?.label).toBe("Archived chats");
     const generalKeys = generalGroup?.items.map((item) => item.key) ?? [];
 
-    expect(generalKeys).toContain(SettingsTabs.Appearance);
     expect(generalKeys).toContain(SettingsTabs.ArchivedConversations);
-    expect(generalKeys).toContain(SettingsTabs.Configuration);
-    expect(generalKeys).toEqual(
-      expect.arrayContaining([
-        SettingsTabs.Memory,
-        SettingsTabs.KeyboardShortcuts,
-      ]),
+    expect(generalKeys).not.toContain(SettingsTabs.Configuration);
+    expect(generalKeys).toContain(SettingsTabs.Memory);
+    expect(generalKeys).toContain(SettingsTabs.Appearance);
+    expect(generalKeys).not.toContain(SettingsTabs.KeyboardShortcuts);
+
+    const configurationGroup = groups.find(
+      (group) => group.key === SettingsGroupKey.Configuration,
     );
-    expect(
-      groups.find((group) => group.key === SettingsGroupKey.Configuration),
-    ).toBeUndefined();
+    expect(configurationGroup?.title).toBe("");
+    expect(configurationGroup?.items.map((item) => item.key)).toEqual([
+      SettingsTabs.Configuration,
+      SettingsTabs.KeyboardShortcuts,
+      SettingsTabs.Providers,
+    ]);
   });
 
-  it("分组顺序与 Codex 一致：个人 → 集成 → 编码", () => {
+  it("分组顺序与 Codex 一致：个人 → 配置 → 集成 → 编码", () => {
     let groups: CategoryGroup[] = [];
 
     renderHookProbe((nextGroups) => {
@@ -122,9 +125,10 @@ describe("useSettingsCategory", () => {
       groups
         .map((group) => group.key)
         .filter((key) => key !== null)
-        .slice(0, 3),
+        .slice(0, 4),
     ).toEqual([
       SettingsGroupKey.Personal,
+      SettingsGroupKey.Configuration,
       SettingsGroupKey.Integrations,
       SettingsGroupKey.Coding,
     ]);
@@ -147,8 +151,8 @@ describe("current settings navigation translations", () => {
     });
     const items = groups.flatMap((group) => group.items);
     const availableSections = settingsSections;
-    expect(groups).toHaveLength(3);
-    expect(items.at(-1)?.key).toBe(SettingsTabs.Worktrees);
+    expect(groups).toHaveLength(4);
+    expect(items.at(-1)?.key).toBe(SettingsTabs.ExecutionPolicy);
     expect(
       items.find((item) => item.key === SettingsTabs.ArchivedConversations)
         ?.label,
@@ -173,8 +177,13 @@ describe("current settings navigation translations", () => {
           .filter((section) => section.group === group.key)
           .map((section) => section.key),
       );
-      if (group.key) expect(group.title.trim()).not.toBe("");
-      else expect(group.title).toBe("");
+      if (group.key === SettingsGroupKey.Configuration) {
+        expect(group.title).toBe("");
+      } else if (group.key) {
+        expect(group.title.trim()).not.toBe("");
+      } else {
+        expect(group.title).toBe("");
+      }
       expect(group.title).not.toContain("settings.group.");
       for (const item of group.items) {
         expect(item.label.trim()).not.toBe("");

@@ -22,6 +22,7 @@ import { useTranslation } from "react-i18next";
 
 import { EmptyStateComposerPanel } from "./EmptyStateComposerPanel";
 import { EmptyStateComposerFrame, EmptyStateLayout } from "./EmptyStateLayout";
+import { readProjectGitStatus } from "@/lib/api/projectGit";
 import { buildSkillSelectionProps } from "../skill-selection/skillSelectionBindings";
 
 import type { MessagePathReference } from "../types";
@@ -631,18 +632,45 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     </EmptyStateComposerFrame>
   );
 
-  const activeProjectName = useMemo(() => {
+  const activeProject = useMemo(() => {
     if (!projectId) {
       return null;
     }
-    const project = openedProjects.find((item) => item.id === projectId);
-    return project?.name?.trim() || null;
+    return openedProjects.find((item) => item.id === projectId) ?? null;
   }, [openedProjects, projectId]);
+  const activeProjectName = activeProject?.name?.trim() || null;
+  const activeProjectRootPath = activeProject?.rootPath ?? null;
+  const [activeProjectIsGit, setActiveProjectIsGit] = useState<boolean | null>(
+    null,
+  );
+
+  useEffect(() => {
+    setActiveProjectIsGit(null);
+    if (!activeProjectRootPath) {
+      return;
+    }
+    let cancelled = false;
+    void readProjectGitStatus(activeProjectRootPath)
+      .then((status) => {
+        if (!cancelled) {
+          setActiveProjectIsGit(status.hasGitRepository);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setActiveProjectIsGit(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProjectRootPath]);
 
   return (
     <EmptyStateLayout
       composer={composerPanel}
       projectName={activeProjectName}
+      projectIsGit={activeProjectIsGit}
       onProjectSelect={
         activeProjectName ? () => setProjectPickerOpen(true) : undefined
       }

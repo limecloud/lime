@@ -7,11 +7,11 @@ use anyhow::Result;
 use config::types::AuthKeyringBackendKind;
 use config::types::OAuthCredentialsStoreMode;
 use exec_server::RouteAwareHttpClient;
+use http::HeaderMap;
 use http_client::HttpClientFactory;
 use http_client::OutboundProxyPolicy;
-use keyring_store::DefaultKeyringStore;
-use http::HeaderMap;
 use keyring::Error as KeyringError;
+use keyring_store::DefaultKeyringStore;
 use oauth2::AccessToken;
 use oauth2::RefreshToken;
 use oauth2::TokenResponse;
@@ -67,8 +67,7 @@ use crate::oauth_http_client::OAuthHttpClientAdapter;
 use crate::oauth_http_client::PROACTIVE_REFRESH_TIMEOUT;
 use crate::startup_error::is_authentication_required_error;
 
-const REFRESH_LOCK_CONTENTION_EVENT_TARGET: &str =
-    "rmcp_client::oauth::refresh_lock::contention";
+const REFRESH_LOCK_CONTENTION_EVENT_TARGET: &str = "rmcp_client::oauth::refresh_lock::contention";
 
 #[tokio::test(flavor = "current_thread")]
 async fn login_and_logout_follow_the_completed_refresh() -> Result<()> {

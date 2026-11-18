@@ -21,6 +21,9 @@ use merge::{merge_item_snapshot, merge_turn_snapshot, ChangeAccumulator};
 mod validation;
 use validation::{validate_identity, validate_item_content};
 
+mod identity;
+mod replay;
+
 /// A page of the builder's raw canonical history.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ThreadHistoryPage<T> {
@@ -345,6 +348,7 @@ impl ThreadHistoryBuilder {
         &mut self,
         changes: ThreadHistoryChangeSet,
     ) -> Result<ThreadHistoryChangeSet, ThreadHistoryBuilderError> {
+        self.adopt_change_identity(&changes);
         self.validate_turns(&changes.changed_turns)?;
         self.validate_items(&changes.changed_items)?;
         self.validate_sequence(changes.sequence)?;
@@ -954,15 +958,6 @@ impl ThreadHistoryBuilder {
             )?;
         }
         Ok(())
-    }
-
-    fn adopt_identity(&mut self, session_id: &SessionId, thread_id: &ThreadId) {
-        if self.session_id.is_none() {
-            self.session_id = Some(session_id.clone());
-        }
-        if self.thread_id.is_none() {
-            self.thread_id = Some(thread_id.clone());
-        }
     }
 }
 

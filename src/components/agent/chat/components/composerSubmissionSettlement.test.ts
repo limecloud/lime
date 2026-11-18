@@ -113,8 +113,8 @@ describe("Composer submission settlement through real Coordinator/Store owners",
     settlement.onRuntimeAccepted(result.receipt);
     expect(settlement.finish({ kind: "rejected" })).toEqual(result);
     expect(submit).toHaveBeenCalledOnce();
-    expect(commit).not.toHaveBeenCalled();
-    expect(h.controller.getDocument().text).toBe("captured");
+    expect(commit).toHaveBeenCalledOnce();
+    expect(h.controller.getDocument().text).toBe("");
     expect(
       canRestoreComposerSubmission({
         controller: h.controller,
@@ -365,7 +365,7 @@ describe("Composer submission settlement through real Coordinator/Store owners",
     expect(restore("p1", "s1")).toBe(false);
     expect(canRestoreComposerSubmission({ controller, scope: {} })).toBe(true);
   });
-  it("waits for root promotion before consuming and keeps acceptance when promotion fails", async () => {
+  it("clears accepted input immediately while waiting for root promotion before consuming", async () => {
     const h = await setup();
     await h.coordinator.bindCommitted(a);
     h.controller.setText("capture");
@@ -382,7 +382,8 @@ describe("Composer submission settlement through real Coordinator/Store owners",
     });
     const result = accepted();
     const actual = settlement.finish(result);
-    await h.coordinator.idle();
+    expect(h.controller.getDocument().text).toBe("");
+    await vi.advanceTimersByTimeAsync(0);
     expect(actual.kind).toBe("runtime-accepted");
     expect(h.mutations.filter((x) => x.op === "consume")).toHaveLength(0);
     expect(onDraftAccepted).toHaveBeenCalledExactlyOnceWith(
@@ -395,5 +396,50 @@ describe("Composer submission settlement through real Coordinator/Store owners",
     expect(h.mutations.map((x) => x.op)).toEqual(["put", "consume"]);
     expect(h.controller.getDocument().text).toBe("");
     expect(settlement.finish({ kind: "rejected" })).toEqual(actual);
+  });
+
+  it("preserves new input at the promoted scope while accepted cleanup is pending", async () => {
+    const h = await setup();
+    await h.coordinator.connect();
+    await h.coordinator.bindCommitted(a);
+    h.controller.setText("submitted");
+    const gate = deferred<void>();
+    h.intercept((command, args, execute) => {
+      if (
+        command === "persisted_atom_update" &&
+        (args.mutation as { op: string }).op === "promote"
+      )
+        return gate.promise.then(execute);
+      return execute();
+    });
+    const settlement = createComposerSubmissionSettlement({
+      controller: h.controller,
+      coordinator: h.coordinator,
+      target: "start",
+      scope: {},
+      canApplyUi: () => true,
+      onDraftAccepted: async (capture) => {
+        await h.coordinator.promote(capture.binding!, local, {
+          expectedTarget: null,
+          sessionId: "s1",
+          threadId: "t1",
+        });
+        await h.coordinator.bindCommitted(local);
+      },
+      onCommitted: vi.fn(),
+    });
+    settlement.finish(accepted());
+    expect(h.controller.getDocument().text).toBe("");
+    h.controller.setText("new draft");
+    await vi.advanceTimersByTimeAsync(250);
+    gate.resolve();
+    await settlement.cleanup;
+    await h.coordinator.idle();
+    await h.coordinator.refresh();
+    expect(h.controller.getDocument().text).toBe("new draft");
+    expect(h.coordinator.getSnapshot().scope).toEqual(local);
+    const stored = await h.read(local);
+    expect(stored?.state).toBe("draft");
+    expect(await h.read(a)).toBeNull();
   });
 });

@@ -1,26 +1,20 @@
 [package]
-name = "utils-path"
+name = "lime-utils-path"
 version.workspace = true
 edition = "2024"
 license.workspace = true
-authors.workspace = true
-repository.workspace = true
-description = "Path normalization helpers."
 
 [lib]
-name = "utils_path"
-path = "src/lib.rs"
 doctest = false
 
 [dependencies]
-dunce = "1"
-windows-sys = { version = "0.61", features = ["Win32_System_Com", "Win32_UI_Shell"] }
-lime-utils-absolute-path.workspace = true
+dunce = "1.0.4"
+lime-utils-absolute-path = { path = "../utils-absolute-path" }
 tempfile.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_System_Com", "Win32_UI_Shell"] }
 
 [dev-dependencies]
 pretty_assertions.workspace = true
 tempfile.workspace = true
-
-[target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Com", "Win32_UI_Shell"] }

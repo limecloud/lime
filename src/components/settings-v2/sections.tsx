@@ -216,15 +216,6 @@ export const settingsSections: readonly SettingsSection[] = [
     render: () => <GeneralSettings />,
   },
   {
-    key: SettingsTabs.Notifications,
-    group: SettingsGroupKey.Personal,
-    labelKey: "settings.notifications.title",
-    icon: Bell,
-    loadingKey: "settings.layout.loading.notifications",
-    preload: loadNotifications,
-    render: () => <NotificationsSettings />,
-  },
-  {
     key: SettingsTabs.Import,
     group: SettingsGroupKey.Personal,
     labelKey: "settings.tab.import",
@@ -271,8 +262,17 @@ export const settingsSections: readonly SettingsSection[] = [
     ),
   },
   {
-    key: SettingsTabs.Configuration,
+    key: SettingsTabs.Notifications,
     group: SettingsGroupKey.Personal,
+    labelKey: "settings.notifications.title",
+    icon: Bell,
+    loadingKey: "settings.layout.loading.notifications",
+    preload: loadNotifications,
+    render: () => <NotificationsSettings />,
+  },
+  {
+    key: SettingsTabs.Configuration,
+    group: SettingsGroupKey.Configuration,
     labelKey: "settings.configuration.title",
     icon: SlidersHorizontal,
     preload: loadConfiguration,
@@ -289,7 +289,7 @@ export const settingsSections: readonly SettingsSection[] = [
   },
   {
     key: SettingsTabs.KeyboardShortcuts,
-    group: SettingsGroupKey.Personal,
+    group: SettingsGroupKey.Configuration,
     labelKey: "settings.tab.keyboardShortcuts",
     icon: Keyboard,
     loadingKey: "settings.layout.loading.keyboardShortcuts",
@@ -298,7 +298,7 @@ export const settingsSections: readonly SettingsSection[] = [
   },
   {
     key: SettingsTabs.Providers,
-    group: SettingsGroupKey.Personal,
+    group: SettingsGroupKey.Configuration,
     labelKey: "settings.tab.providers",
     icon: Brain,
     loadingKey: "settings.layout.loading.providers",
@@ -336,15 +336,6 @@ export const settingsSections: readonly SettingsSection[] = [
     loadingKey: "settings.plugins.loading",
     preload: loadPluginsCatalog,
     render: () => <PluginsCatalogSettings embedded />,
-  },
-  {
-    key: SettingsTabs.McpServers,
-    group: SettingsGroupKey.Integrations,
-    labelKey: "settings.mcp.navTitle",
-    icon: Server,
-    loadingKey: "settings.mcp.loading",
-    preload: loadMcpServers,
-    render: (context) => <McpServersSettings onNavigate={context.onNavigate} />,
   },
   {
     key: SettingsTabs.ComputerUse,
@@ -391,15 +382,13 @@ export const settingsSections: readonly SettingsSection[] = [
     render: () => <CloudDesktopsSettings />,
   },
   {
-    key: SettingsTabs.ExecutionPolicy,
-    group: SettingsGroupKey.Coding,
-    labelKey: "settings.tab.executionPolicy",
-    icon: ShieldCheck,
-    loadingKey: "settings.layout.loading.executionPolicy",
-    preload: loadExecutionPolicy,
-    render: (context) => (
-      <ExecutionPolicySettings focus={context.executionPolicyFocus ?? null} />
-    ),
+    key: SettingsTabs.McpServers,
+    group: SettingsGroupKey.Integrations,
+    labelKey: "settings.mcp.navTitle",
+    icon: Server,
+    loadingKey: "settings.mcp.loading",
+    preload: loadMcpServers,
+    render: (context) => <McpServersSettings onNavigate={context.onNavigate} />,
   },
   {
     key: SettingsTabs.Hooks,
@@ -445,6 +434,17 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: GitBranch,
     preload: loadWorktrees,
     render: (context) => <WorktreesSettings onNavigate={context.onNavigate} />,
+  },
+  {
+    key: SettingsTabs.ExecutionPolicy,
+    group: SettingsGroupKey.Coding,
+    labelKey: "settings.tab.executionPolicy",
+    icon: ShieldCheck,
+    loadingKey: "settings.layout.loading.executionPolicy",
+    preload: loadExecutionPolicy,
+    render: (context) => (
+      <ExecutionPolicySettings focus={context.executionPolicyFocus ?? null} />
+    ),
   },
 ];
 

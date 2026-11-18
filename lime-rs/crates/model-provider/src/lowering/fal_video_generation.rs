@@ -1,6 +1,6 @@
 use super::common::{canonical_generation_prompt, non_empty, ProtocolMappingError};
 use app_server_protocol::ProtocolKind;
-use runtime_core::CanonicalRequest;
+use model_routing_core::CanonicalRequest;
 use serde_json::{json, Map, Value};
 
 const STRING_METADATA_FIELDS: &[&str] = &[

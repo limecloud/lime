@@ -4,7 +4,7 @@ use super::common::{
 };
 use super::{ResponsesImageGenerationInputShape, ResponsesImageGenerationOptions};
 use app_server_protocol::ProtocolKind;
-use runtime_core::CanonicalRequest;
+use model_routing_core::CanonicalRequest;
 use serde_json::{json, Value};
 
 const DEFAULT_RESPONSES_IMAGE_GENERATION_OUTER_MODEL: &str = "gpt-5.5";

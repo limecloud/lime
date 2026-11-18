@@ -23,6 +23,7 @@ use super::canonical_rollout::RolloutStore;
 use super::{ProjectionStore, StorageRoots, StoredSession};
 
 mod archive;
+mod incremental;
 mod queue;
 mod reviewer;
 mod workspace;
@@ -511,7 +512,7 @@ fn canonical_rollout_uses_creation_date_and_survives_cross_day_restart() {
 }
 
 #[test]
-fn rollout_path_lookup_resolves_relative_and_absolute_codex_fork_sources() {
+fn rollout_path_lookup_resolves_relative_and_absolute_host_fork_sources() {
     let (_temp, agent_root, store) = store_with_rollout();
     let source = thread("path-fork-source", 1_700_000_000_000);
     create(&store, &source);

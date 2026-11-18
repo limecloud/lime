@@ -401,11 +401,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     window.addEventListener("lime:cycle-reasoning-effort", cycle);
     return () =>
       window.removeEventListener("lime:cycle-reasoning-effort", cycle);
-  }, [
-    reasoningEffort,
-    selectedReasoningEffortOptions,
-    setReasoningEffort,
-  ]);
+  }, [reasoningEffort, selectedReasoningEffortOptions, setReasoningEffort]);
   const selectedReasoningEffort = selectedReasoningEffortOption?.value ?? "";
   const selectedReasoningEffortLabel = selectedReasoningEffortOption
     ? reasoningEffortLabel(selectedReasoningEffortOption)
@@ -607,7 +603,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                 variant="outline"
                 size="sm"
                 className="h-8 shrink-0 border-[0.5px] border-[var(--lime-warning-border)] bg-[var(--lime-surface)] text-[var(--lime-warning)] hover:bg-[var(--lime-warning-soft)] hover:text-[var(--lime-warning)]"
-                onClick={onManageProviders}
+                onClick={() => onManageProviders()}
               >
                 {t("common.modelSelector.action.configure")}
               </Button>

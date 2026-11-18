@@ -669,6 +669,180 @@ describe("ThreadWorkspaceHeader", () => {
     act(() => root.unmount());
   });
 
+  it("移动到项目菜单打开项目选择并提交", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onMoveToProject = vi.fn().mockResolvedValue(undefined);
+    act(() => {
+      root.render(
+        <AppShell>
+          <AppShellHeader />
+          <ThreadWorkspaceHeader
+            sessionId="thread-1"
+            title="会话标题"
+            projects={[
+              {
+                id: "p1",
+                name: "Project One",
+                createdAt: 0,
+                updatedAt: 0,
+                position: 0,
+                metadata: {},
+                roots: [],
+              },
+              {
+                id: "p2",
+                name: "Project Two",
+                createdAt: 0,
+                updatedAt: 0,
+                position: 1,
+                metadata: {},
+                roots: [],
+              },
+            ]}
+            projectId="p1"
+            onMoveToProject={onMoveToProject}
+          />
+        </AppShell>,
+      );
+    });
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="thread-workspace-header-title-menu"]',
+        )
+        ?.click(),
+    );
+    act(() =>
+      document
+        .querySelector<HTMLElement>(
+          '[data-testid="thread-workspace-header-move-project"]',
+        )
+        ?.click(),
+    );
+    const projectTwo = [...document.querySelectorAll("button")].find(
+      (button) => button.textContent?.includes("Project Two"),
+    );
+    expect(projectTwo).toBeTruthy();
+    act(() => projectTwo?.click());
+    expect(onMoveToProject).toHaveBeenCalledWith("p2");
+    act(() => root.unmount());
+  });
+
+  it("从项目中移除调用 null 项目", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onMoveToProject = vi.fn().mockResolvedValue(undefined);
+    act(() => {
+      root.render(
+        <AppShell>
+          <AppShellHeader />
+          <ThreadWorkspaceHeader
+            sessionId="thread-1"
+            title="会话标题"
+            projects={[]}
+            projectId="p1"
+            onMoveToProject={onMoveToProject}
+          />
+        </AppShell>,
+      );
+    });
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="thread-workspace-header-title-menu"]',
+        )
+        ?.click(),
+    );
+    act(() =>
+      document
+        .querySelector<HTMLElement>(
+          '[data-testid="thread-workspace-header-move-project"]',
+        )
+        ?.click(),
+    );
+    act(() =>
+      document
+        .querySelector<HTMLElement>(
+          '[data-testid="thread-workspace-header-remove-project"]',
+        )
+        ?.click(),
+    );
+    expect(onMoveToProject).toHaveBeenCalledWith(null);
+    act(() => root.unmount());
+  });
+
+  it("在新窗口中打开调用 Electron bridge", () => {
+    const openSessionInNewWindow = vi.fn().mockResolvedValue(undefined);
+    const previousElectronApi = window.electronAPI;
+    window.electronAPI = {
+      deepLink: { openSessionInNewWindow },
+    } as unknown as typeof window.electronAPI;
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    try {
+      act(() => {
+        root.render(
+          <AppShell>
+            <AppShellHeader />
+            <ThreadWorkspaceHeader sessionId="thread-1" title="会话标题" />
+          </AppShell>,
+        );
+      });
+      act(() =>
+        container
+          .querySelector<HTMLButtonElement>(
+            '[data-testid="thread-workspace-header-title-menu"]',
+          )
+          ?.click(),
+      );
+      const item = document.querySelector<HTMLElement>(
+        '[data-testid="thread-workspace-header-open-window"]',
+      );
+      expect(item).not.toBeNull();
+      act(() => item?.click());
+      expect(openSessionInNewWindow).toHaveBeenCalledWith("thread-1");
+    } finally {
+      act(() => root.unmount());
+      window.electronAPI = previousElectronApi;
+    }
+  });
+
+  it("删除菜单项打开确认对话框", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onDelete = vi.fn().mockResolvedValue(undefined);
+    act(() => {
+      root.render(
+        <AppShell>
+          <AppShellHeader />
+          <ThreadWorkspaceHeader
+            sessionId="thread-1"
+            title="会话标题"
+            onRename={vi.fn().mockResolvedValue(undefined)}
+            onDelete={onDelete}
+          />
+        </AppShell>,
+      );
+    });
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="thread-workspace-header-title-menu"]',
+    );
+    act(() => trigger?.click());
+    const deleteItem = document.querySelector<HTMLElement>(
+      '[data-testid="thread-workspace-header-delete"]',
+    );
+    expect(deleteItem).not.toBeNull();
+    act(() => deleteItem?.click());
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(document.body.textContent).toContain("会话标题");
+    act(() => root.unmount());
+  });
+
   it("标题下拉箭头打开会话菜单", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

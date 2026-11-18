@@ -24,6 +24,38 @@ fn text_input(text: impl Into<String>) -> Vec<RuntimeInput> {
 }
 
 #[tokio::test]
+async fn listing_an_empty_cold_queue_does_not_load_the_session() {
+    let temp = tempfile::tempdir().expect("queue root");
+    let store = Arc::new(
+        ProjectionStore::initialize_with_agent_root(
+            temp.path().join("projection.sqlite"),
+            temp.path().join("agent-root"),
+        )
+        .expect("projection"),
+    );
+    let core = RuntimeCore::default().with_projection_store(store.clone());
+    start_queue_session(&core, "cold-empty-queue", "cold-empty-thread");
+    drop(core);
+
+    // No event-log reader is installed: this read must work from the canonical
+    // queue summary even while transcript hydration is unavailable.
+    let cold = RuntimeCore::default().with_projection_store(store);
+    assert!(cold
+        .list_thread_queue_submissions("cold-empty-thread")
+        .await
+        .expect("empty queue")
+        .is_empty());
+    assert!(cold
+        .list_loaded_threads(app_server_protocol::protocol::v2::ThreadLoadedListParams {
+            cursor: None,
+            limit: None,
+        })
+        .expect("loaded threads")
+        .data
+        .is_empty());
+}
+
+#[tokio::test]
 async fn thread_queue_crud_reorder_and_duplicate_client_ids_are_durable() {
     let projection_root = tempfile::tempdir().expect("queue CRUD projection root");
     let projection_store = Arc::new(

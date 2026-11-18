@@ -6,7 +6,7 @@ use lime_core::models::model_registry::{
 };
 use lime_services::api_key_provider_service::ApiKeyProviderService;
 use lime_services::model_registry_service::ModelRegistryService;
-use runtime_core::{CandidateModel, CandidateModelSet, CandidateRequirements};
+use model_routing_core::{CandidateModel, CandidateModelSet, CandidateRequirements};
 use serde::Serialize;
 
 pub(super) fn build(

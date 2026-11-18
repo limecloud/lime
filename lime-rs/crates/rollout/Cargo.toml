@@ -33,7 +33,7 @@ time = { version = "0.3.47", features = ["formatting", "local-offset", "macros",
 tokio = { workspace = true, features = ["fs", "io-util", "macros", "process", "rt", "sync", "time"] }
 tracing.workspace = true
 utils-output-truncation = { path = "../utils-output-truncation" }
-utils-path = { path = "../utils-path" }
+utils-path = { path = "../utils-path", package = "lime-utils-path" }
 utils-process = { path = "../utils-process" }
 utils-string = { path = "../utils-string" }
 uuid.workspace = true

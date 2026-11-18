@@ -37,6 +37,7 @@ use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::Instant;
@@ -559,6 +560,12 @@ where
     let (generation, provider_options) = provider_request_controls(&session_config);
     let first_visible_output_timeout = first_visible_output_timeout(&session_config);
     let provider_step_timeout = provider_step_timeout(&session_config);
+    let event_sink_elapsed = AtomicU64::new(0);
+    let mut on_event = |event| {
+        let started = Instant::now();
+        on_event(event);
+        event_sink_elapsed.fetch_add(started.elapsed().as_nanos() as u64, Ordering::Relaxed);
+    };
 
     loop {
         if is_cancelled(&cancel_token) {
@@ -748,6 +755,7 @@ where
         }
         let first_visible_output_deadline = Instant::now() + first_visible_output_timeout;
         let provider_step_deadline = Instant::now() + provider_step_timeout;
+        let event_sink_elapsed_at_start = event_sink_elapsed.load(Ordering::Relaxed);
         let mut stream = match start_provider_stream(
             &provider,
             request,
@@ -838,11 +846,16 @@ where
         let mut step_emitted_tool_call = false;
 
         loop {
+            // 本地投影和持久化的同步回调不占用供应商等待预算。
+            let projection_elapsed = Duration::from_nanos(
+                event_sink_elapsed.load(Ordering::Relaxed) - event_sink_elapsed_at_start,
+            );
             let event = match next_provider_event(
                 &mut stream,
                 cancel_token.as_ref(),
-                (!has_user_visible_output).then_some(first_visible_output_deadline),
-                Some(provider_step_deadline),
+                (!has_user_visible_output)
+                    .then_some(first_visible_output_deadline + projection_elapsed),
+                Some(provider_step_deadline + projection_elapsed),
             )
             .await
             {

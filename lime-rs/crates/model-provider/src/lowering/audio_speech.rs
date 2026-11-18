@@ -1,8 +1,8 @@
 use super::common::{canonical_generation_prompt, non_empty, ProtocolMappingError};
 use app_server_protocol::ProtocolKind;
-use runtime_core::CanonicalRequest;
+use model_routing_core::CanonicalRequest;
 #[cfg(test)]
-use runtime_core::ContentPart;
+use model_routing_core::ContentPart;
 use serde_json::{json, Map, Value};
 
 pub(crate) fn body_for_model(

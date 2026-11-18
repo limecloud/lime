@@ -387,6 +387,7 @@ export class ComposerDraftCoordinator {
   settleSubmission(
     capture: ComposerDraftCapture,
     result: unknown,
+    beforeConsume?: Promise<unknown>,
   ): Promise<boolean> {
     const context = this.#captures.get(capture);
     if (!context || capture.receipt.kind !== "accepted")
@@ -402,48 +403,92 @@ export class ComposerDraftCoordinator {
     }
     const token = capture.binding;
     const tracked = token && this.#tokens.get(token);
-    if (!token || !tracked || capture.receipt.target === "interrupt")
-      return Promise.resolve(false);
+    if (capture.receipt.target === "interrupt") return Promise.resolve(false);
+    if (!token || !tracked) {
+      if (context.binding && !context.binding.codecValid)
+        return Promise.resolve(false);
+      let committed = false;
+      context.settled = Promise.resolve().then(() => committed);
+      committed = Boolean(
+        this.#attached &&
+        this.#binding === context.binding &&
+        this.#project(() =>
+          this.#controller.commit(
+            capture.receipt as Extract<
+              ComposerSubmitResult,
+              { kind: "accepted" }
+            >,
+          ),
+        ),
+      );
+      if (committed && context.binding) {
+        this.#retire(context.binding);
+        // Without a stored identity there is nothing safe to consume. Preserve
+        // the accepted local state when a delayed read returns an older draft.
+        context.binding.edited = true;
+      }
+      return context.settled;
+    }
     // Newer edits queued before acceptance keep their exact CAS predecessor.
     this.#observe();
     this.#flush();
     if (tracked.lane.version === token.identity.scopeVersion)
       tracked.lane.retiring = true;
-    context.settled = this.#enqueue(tracked.lane, {
-      op: "consume",
-      identity: token.identity,
-    }).then((response) => {
+    const persistence = this.#enqueue(
+      tracked.lane,
+      {
+        op: "consume",
+        identity: token.identity,
+      },
+      beforeConsume ? () => beforeConsume.then(() => true) : undefined,
+    );
+    let committed = false;
+    context.settled = persistence.then((response) => {
+      if (context.binding?.clearing === tracked.lane) {
+        context.binding.clearing = null;
+        context.binding.read += 1;
+      }
       if (
-        response?.outcome !== "applied" ||
-        !this.#attached ||
-        this.#binding !== context.binding ||
-        context.binding?.lane !== tracked.lane ||
-        tracked.lane.version !== token.identity.scopeVersion
-      )
-        return false;
-      const committed = this.#project(() =>
+        this.#attached &&
+        this.#binding === context.binding &&
+        !context.binding?.lane &&
+        response?.outcome !== "applied"
+      ) {
+        if (context.binding) context.binding.edited = true;
+        this.#publish({ mutation: response?.outcome ?? "unavailable" });
+      }
+      return committed;
+    });
+    // Runtime acceptance owns the visible draft. Disk/CAS completion must not
+    // keep already submitted text in the editor; newer local edits still win.
+    committed = Boolean(
+      this.#attached &&
+      this.#binding === context.binding &&
+      context.binding?.lane === tracked.lane &&
+      tracked.lane.version === token.identity.scopeVersion &&
+      this.#project(() =>
         this.#controller.commit(
           capture.receipt as Extract<
             ComposerSubmitResult,
             { kind: "accepted" }
           >,
         ),
-      );
-      if (committed) {
-        this.#retire(context.binding);
-        // commit notifies synchronously. A subscriber may edit the freshly cleared
-        // document while projection observation is suppressed; publish that edit
-        // as a new logical draft after retiring the accepted identity.
-        if (
-          this.#controller.getSnapshot().revision !==
-          capture.receipt.revision + 1
-        ) {
-          context.binding.observedSignature = null;
-          this.#observe();
-        }
+      ),
+    );
+    if (committed && context.binding) {
+      context.binding.clearing = tracked.lane;
+      this.#retire(context.binding);
+      // commit notifies synchronously. A subscriber may edit the freshly cleared
+      // document while projection observation is suppressed; publish that edit
+      // as a new logical draft after retiring the accepted identity.
+      if (
+        this.#controller.getSnapshot().revision !==
+        capture.receipt.revision + 1
+      ) {
+        context.binding.observedSignature = null;
+        this.#observe();
       }
-      return committed;
-    });
+    }
     return context.settled;
   }
 
@@ -660,11 +705,11 @@ export class ComposerDraftCoordinator {
   #enqueue(
     lane: DraftLane,
     mutation: PersistedAtomMutation,
-    mayApply?: () => boolean,
+    mayApply?: () => boolean | Promise<boolean>,
   ): Promise<PersistedAtomUpdateResult | null> {
     mutation = freeze(detached(mutation));
     const operation = this.#queue.then(async () => {
-      if (mayApply && !mayApply()) return null;
+      if (mayApply && !(await mayApply())) return null;
       try {
         const result = await this.#gateway.update({
           key,
@@ -675,7 +720,13 @@ export class ComposerDraftCoordinator {
         });
         if (result.outcome === "applied" && mutation.op === "promote") {
           lane.scope = freeze(detached(mutation.target));
-          if (this.#binding?.lane === lane) {
+          if (
+            this.#binding?.lane === lane ||
+            this.#binding?.clearing === lane
+          ) {
+            const local = this.#binding.lane;
+            if (local && sameScope(local.scope, mutation.source))
+              local.scope = lane.scope;
             this.#binding.scope = lane.scope;
             this.#binding.read += 1;
           }

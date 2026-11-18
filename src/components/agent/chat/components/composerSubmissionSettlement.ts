@@ -240,14 +240,19 @@ export function createComposerSubmissionSettlement({
       onAccepted?.(result, receipt?.draft),
     );
     if (coordinator && capture) {
-      cleanup = Promise.resolve()
-        .then(() => onDraftAccepted?.(capture, result))
-        .catch(() => {
-          runRuntimeSubmissionEffect(result.receipt, "accepted_submit", () => {
-            throw new Error("Composer promotion failed after acceptance");
-          });
-        })
-        .then(() => coordinator.settleSubmission(capture, result))
+      let promotion: Promise<void>;
+      try {
+        promotion = Promise.resolve(onDraftAccepted?.(capture, result));
+      } catch (error) {
+        promotion = Promise.reject(error);
+      }
+      promotion = promotion.catch(() => {
+        runRuntimeSubmissionEffect(result.receipt, "accepted_submit", () => {
+          throw new Error("Composer promotion failed after acceptance");
+        });
+      });
+      cleanup = coordinator
+        .settleSubmission(capture, result, promotion)
         .then((applied) => {
           if (applied) committed(result);
           else {

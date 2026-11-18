@@ -10,10 +10,10 @@ use std::io::Write;
 
 use anyhow::Result;
 use anyhow::ensure;
-use utils_home_dir::find_lime_home;
 use oauth2::CsrfToken;
 use sha2::Digest;
 use sha2::Sha256;
+use utils_home_dir::find_lime_home;
 
 use super::RefreshCredentialLock;
 

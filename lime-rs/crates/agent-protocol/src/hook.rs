@@ -202,7 +202,7 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn canonical_hook_wire_matches_codex_core_contract() {
+    fn canonical_hook_wire_matches_host_core_contract() {
         assert_eq!(
             serde_json::to_value(HookEventName::PreToolUse).expect("event wire"),
             json!("pre_tool_use")

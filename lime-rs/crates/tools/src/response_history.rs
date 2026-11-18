@@ -72,11 +72,11 @@ pub fn truncate_assistant_output_text_to_token_budget(
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
     use protocol::models::ContentItem;
     use protocol::models::ResponseItem;
     use utils_output_truncation::TruncationPolicy;
     use utils_output_truncation::truncate_text;
-    use pretty_assertions::assert_eq;
 
     use super::retain_tail_from_last_n_user_messages;
     use super::truncate_assistant_output_text_to_token_budget;

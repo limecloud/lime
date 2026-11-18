@@ -1,5 +1,5 @@
 use super::CurrentProviderError;
-use runtime_core::{CanonicalLlmEvent as LlmEvent, ToolResultValue};
+use model_routing_core::{CanonicalLlmEvent as LlmEvent, ToolResultValue};
 use serde_json::{json, Map, Value};
 use std::collections::{BTreeMap, HashSet};
 

@@ -113,6 +113,7 @@ interface EmptyStateLayoutProps {
   composer: ReactNode;
   children?: ReactNode;
   projectName?: string | null;
+  projectIsGit?: boolean | null;
   onProjectSelect?: () => void;
 }
 
@@ -120,15 +121,20 @@ export function EmptyStateLayout({
   composer,
   children,
   projectName,
+  projectIsGit,
   onProjectSelect,
 }: EmptyStateLayoutProps) {
   const { t } = useTranslation("agent");
   const normalizedProjectName = projectName?.trim() ?? "";
+  const titleKey =
+    projectIsGit === false
+      ? "agentChat.home.titleInProjectNonGit"
+      : "agentChat.home.titleInProject";
   const title = normalizedProjectName ? (
     <Trans
       ns="agent"
       t={t}
-      i18nKey="agentChat.home.titleInProject"
+      i18nKey={titleKey}
       values={{ projectName: normalizedProjectName }}
       components={{
         projectSelect: onProjectSelect ? (

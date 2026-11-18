@@ -15,6 +15,7 @@ pub fn build_streamable_http_transport(
         bearer_token_env_var,
         http_headers,
         env_http_headers,
+        ..
     } = &config.transport
     else {
         return Err(McpError::ConfigError(

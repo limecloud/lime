@@ -8,6 +8,7 @@ import {
   ELECTRON_HOST_COMMANDS,
   IPC_DEEP_LINK_GET_CURRENT_CHANNEL,
   IPC_DEEP_LINK_GET_URLS_CHANNEL,
+  IPC_OPEN_SESSION_WINDOW_CHANNEL,
   IPC_DIALOG_OPEN_CHANNEL,
   IPC_DIALOG_SAVE_CHANNEL,
   IPC_EMIT_CHANNEL,
@@ -164,6 +165,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     },
     getUrls: () => ipcRenderer.invoke(IPC_DEEP_LINK_GET_URLS_CHANNEL),
     getCurrent: () => ipcRenderer.invoke(IPC_DEEP_LINK_GET_CURRENT_CHANNEL),
+    openSessionInNewWindow: (sessionId: string) =>
+      ipcRenderer.invoke(IPC_OPEN_SESSION_WINDOW_CHANNEL, sessionId),
   },
 });
 

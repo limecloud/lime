@@ -8,6 +8,7 @@ import {
   ELECTRON_HOST_COMMANDS,
   IPC_DEEP_LINK_GET_CURRENT_CHANNEL,
   IPC_DEEP_LINK_GET_URLS_CHANNEL,
+  IPC_OPEN_SESSION_WINDOW_CHANNEL,
   IPC_DIALOG_OPEN_CHANNEL,
   IPC_DIALOG_SAVE_CHANNEL,
   IPC_EMIT_CHANNEL,
@@ -77,6 +78,7 @@ type PreloadApi = {
     onOpenUrl(handler: (urls: string[]) => void): () => void;
     getUrls(): Promise<unknown>;
     getCurrent(): Promise<unknown>;
+    openSessionInNewWindow(sessionId: string): Promise<unknown>;
   };
 };
 
@@ -385,6 +387,7 @@ describe("electron/preload", () => {
     await api.globalShortcut.isRegistered("CommandOrControl+L");
     await api.deepLink.getUrls();
     await api.deepLink.getCurrent();
+    await api.deepLink.openSessionInNewWindow("session-1");
     api.send("frontend:ready", { ok: true });
     await api.emit("frontend:loaded");
 
@@ -432,6 +435,10 @@ describe("electron/preload", () => {
     );
     expect(ipcInvoke).toHaveBeenCalledWith(IPC_DEEP_LINK_GET_URLS_CHANNEL);
     expect(ipcInvoke).toHaveBeenCalledWith(IPC_DEEP_LINK_GET_CURRENT_CHANNEL);
+    expect(ipcInvoke).toHaveBeenCalledWith(
+      IPC_OPEN_SESSION_WINDOW_CHANNEL,
+      "session-1",
+    );
     expect(ipcSend).toHaveBeenCalledWith("app:emit", "frontend:ready", {
       ok: true,
     });

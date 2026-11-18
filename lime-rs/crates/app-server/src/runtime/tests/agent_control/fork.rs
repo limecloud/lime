@@ -145,7 +145,7 @@ async fn assert_rejected_child_is_clean(
 }
 
 #[tokio::test]
-async fn fork_uses_codex_sanitize_profile_for_internal_items() {
+async fn fork_uses_host_sanitize_profile_for_internal_items() {
     let (_temp, _event_log_writer, store, core) = persistent_core();
     let parent = core
         .start_session(start_params(

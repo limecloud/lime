@@ -201,12 +201,12 @@ pub fn repo_root() -> io::Result<PathBuf> {
     let marker = if runfiles_available() {
         let runfiles = runfiles::Runfiles::create()
             .map_err(|err| io::Error::other(format!("failed to create runfiles: {err}")))?;
-        let marker_path = option_env!("CODEX_REPO_ROOT_MARKER")
+        let marker_path = option_env!("LIME_REPO_ROOT_MARKER")
             .map(PathBuf::from)
             .ok_or_else(|| {
                 io::Error::new(
                     io::ErrorKind::NotFound,
-                    "CODEX_REPO_ROOT_MARKER was not set at compile time",
+                    "LIME_REPO_ROOT_MARKER was not set at compile time",
                 )
             })?;
         runfiles::rlocation!(runfiles, &marker_path).ok_or_else(|| {

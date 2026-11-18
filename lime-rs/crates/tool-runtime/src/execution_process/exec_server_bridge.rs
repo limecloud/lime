@@ -111,7 +111,10 @@ async fn run(
         file_system::FileSystemSandboxContext::from_permission_profile(profile, cwd.clone())
     });
     let params = ExecParams {
-        metadata: None,
+        metadata: Some(exec_server::ExecMetadata {
+            thread_id: None,
+            tool_call_id: Some(request.tool_id.clone()),
+        }),
         process_id: ProcessId::from(request.process_id.clone()),
         argv: request.command.clone(),
         cwd,
@@ -166,8 +169,10 @@ async fn run(
                         let _ = process.signal(exec_server::ProcessSignal::Interrupt).await;
                         status = ExecutionProcessStatus::Interrupted;
                     }
+                    Some(LocalExecutionControl::CloseStdin) => {
+                        let _ = process.close_stdin().await;
+                    }
                     Some(LocalExecutionControl::Resize { .. })
-                    | Some(LocalExecutionControl::CloseStdin)
                     | None => {}
                 }
             }

@@ -55,7 +55,7 @@ const ProjectButton = styled.button<{ $active: boolean }>`
   color: var(--sidebar-foreground);
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   padding: 0 8px;
   cursor: pointer;
   text-align: left;
@@ -69,8 +69,8 @@ const ProjectButton = styled.button<{ $active: boolean }>`
   }
 
   svg {
-    width: 15px;
-    height: 15px;
+    width: 16px;
+    height: 16px;
     flex-shrink: 0;
     color: var(--sidebar-muted);
   }
@@ -82,13 +82,14 @@ const ProjectName = styled.span`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 430;
+  line-height: 21px;
 `;
 
 const ProjectMenuButton = styled.button`
-  width: 26px;
-  height: 26px;
+  width: 20px;
+  height: 20px;
   border: none;
   border-radius: 7px;
   display: inline-flex;
@@ -117,8 +118,8 @@ const ProjectMenuButton = styled.button`
   }
 
   svg {
-    width: 15px;
-    height: 15px;
+    width: 14px;
+    height: 14px;
   }
 `;
 

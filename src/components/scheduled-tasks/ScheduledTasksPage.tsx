@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarClock,
-  Clock,
   LoaderCircle,
   RefreshCw,
 } from "lucide-react";
@@ -546,11 +545,13 @@ function EmptyWorkbench({
     <div className="flex h-full min-h-[420px] items-center justify-center overflow-y-auto px-6 py-10">
       <div className="flex w-full max-w-md flex-col items-center text-center">
         <div className="flex flex-col items-center gap-3">
-          <Clock
-            className="h-12 w-12 text-slate-400"
-            strokeWidth={1.2}
-            aria-hidden="true"
-          />
+          <span
+            className="select-none text-5xl leading-none"
+            role="img"
+            aria-label="🕗"
+          >
+            🕗
+          </span>
           <div className="flex flex-col items-center gap-0.5">
             <h1 className="text-[18px] leading-[26px] font-normal tracking-[-0.025em] text-slate-900">
               {t("scheduledTasks.empty.workbenchTitle")}

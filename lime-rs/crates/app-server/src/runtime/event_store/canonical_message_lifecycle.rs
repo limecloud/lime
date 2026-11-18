@@ -482,12 +482,12 @@ pub(super) fn attach_canonical_item_entity(
         return Ok(());
     }
 
-    let mut history = Vec::with_capacity(stored.events.len() + pending_events.len() + 1);
-    history.extend(stored.events.iter().cloned());
-    history.extend(pending_events.iter().cloned());
-    history.push(event.clone());
     let changes = thread_item_projection::materialize_events(
-        &history,
+        stored
+            .events
+            .iter()
+            .chain(pending_events)
+            .chain(std::iter::once(&*event)),
         &stored.session.session_id,
         &stored.session.thread_id,
     )

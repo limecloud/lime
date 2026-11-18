@@ -46,6 +46,8 @@ use tool_runtime::turn_snapshot::{
 mod context_history;
 #[path = "tests/continuation.rs"]
 mod continuation;
+#[path = "tests/deadline.rs"]
+mod deadline;
 #[path = "tests/final_completion.rs"]
 mod final_completion;
 #[path = "tests/hook_snapshot.rs"]

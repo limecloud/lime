@@ -135,28 +135,31 @@ mod tests {
                 env_vars: Vec::new(),
                 command: "node".to_string(),
                 args: Vec::new(),
-                env: HashMap::new(),
+                env: Some(HashMap::new()),
                 cwd: None,
             },
             environment_id: crate::types::DEFAULT_MCP_SERVER_ENVIRONMENT_ID.to_string(),
             enabled: true,
-            startup_timeout: 30,
-            tool_timeout: None,
+            startup_timeout_sec: Some(std::time::Duration::from_secs(30)),
+            tool_timeout_sec: None,
             enabled_tools: enabled_tools.map(|tools| {
                 tools
                     .into_iter()
                     .map(ToString::to_string)
                     .collect::<Vec<_>>()
             }),
-            disabled_tools: disabled_tools
-                .into_iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>(),
+            disabled_tools: Some(
+                disabled_tools
+                    .into_iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>(),
+            ),
             required: false,
             supports_parallel_tool_calls: false,
             scopes: None,
             oauth: None,
             oauth_resource: None,
+            ..Default::default()
         }
     }
 

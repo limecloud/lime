@@ -314,34 +314,32 @@ pub(crate) fn list_mcp_runtime_server_specs(
     plugin_store: &super::plugin_catalog::PluginStore,
     market_store: &super::market::MarketStore,
 ) -> Result<Vec<lime_mcp::McpRuntimeServerSpec>, RuntimeCoreError> {
-    let mut specs = McpService::get_all(db)
-        .map_err(data_error)?
-        .into_iter()
-        .filter(|server| server.enabled_lime)
-        .filter_map(|server| {
-            let config = parse_mcp_server_config(&server.server_config);
-            config.enabled.then(|| lime_mcp::McpRuntimeServerSpec {
-                name: server.name,
-                plugin_id: None,
-                config,
-            })
-        })
-        .collect::<Vec<_>>();
-    let mut names = specs
-        .iter()
-        .map(|spec| spec.name.clone())
-        .collect::<HashSet<_>>();
+    let mut catalog = lime_mcp::McpCatalog::new();
+    for server in McpService::get_all(db).map_err(data_error)? {
+        if !server.enabled_lime {
+            continue;
+        }
+        let config = parse_mcp_server_config(&server.server_config);
+        if config.enabled {
+            catalog.add_config(server.name, config);
+        }
+    }
     match super::plugin_catalog::list_plugin_mcp_runtime_server_specs(plugin_store) {
         Ok(plugin_specs) => {
             for spec in plugin_specs {
-                if !names.insert(spec.name.clone()) {
+                let key = lime_mcp::McpServerKey::unscoped(spec.name.clone());
+                if catalog.server(&key).is_some() {
                     tracing::warn!(
                         server_name = %spec.name,
                         "跳过与现有 MCP server 同名的 Plugin MCP server"
                     );
                     continue;
                 }
-                specs.push(spec);
+                let attribution = lime_mcp::McpPluginAttribution::new(
+                    spec.plugin_id.clone().unwrap_or_else(|| spec.name.clone()),
+                    spec.name.clone(),
+                );
+                catalog.add_plugin(spec.name, spec.config, attribution);
             }
         }
         Err(error) => {
@@ -349,10 +347,17 @@ pub(crate) fn list_mcp_runtime_server_specs(
         }
     }
     for spec in market_store.mcp_specs().map_err(data_error)? {
-        if names.insert(spec.name.clone()) {
-            specs.push(spec);
+        let key = lime_mcp::McpServerKey::unscoped(spec.name.clone());
+        if catalog.server(&key).is_none() {
+            catalog.add_compatibility(spec.name, spec.config, "market");
         }
     }
+
+    let mut specs = catalog
+        .resolve(lime_mcp::McpServerExposure::Legacy)
+        .into_iter()
+        .map(|server| lime_mcp::McpRuntimeServerSpec::from_resolved(&server))
+        .collect::<Vec<_>>();
     specs.sort_by(|left, right| left.name.cmp(&right.name));
     Ok(specs)
 }
@@ -483,7 +488,7 @@ pub(crate) async fn unsubscribe_mcp_resource(
 }
 
 fn parse_mcp_server_config(config_value: &Value) -> McpServerConfig {
-    McpServerConfig::from_value(config_value.clone()).unwrap_or_default()
+    serde_json::from_value(config_value.clone()).unwrap_or_default()
 }
 
 fn resolve_server_config(

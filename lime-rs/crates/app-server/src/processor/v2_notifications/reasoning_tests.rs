@@ -59,7 +59,7 @@ fn body_parsing_preserves_text_for_final_reasoning_and_assistant_batches() {
 }
 
 #[test]
-fn maps_indexed_reasoning_notifications_in_codex_order() {
+fn maps_indexed_reasoning_notifications_in_host_order() {
     let mut projector = V2NotificationProjector::default();
     let events = [
         event(

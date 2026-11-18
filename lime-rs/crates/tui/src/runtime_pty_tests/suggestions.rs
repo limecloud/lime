@@ -146,7 +146,9 @@ pub(super) fn exercise_suggestion_menus(
     eprintln!(
         "TUI_EMPTY_COMPLETION_OK file-tab=closed skill-tab-enter=closed draft=preserved turns=none"
     );
-    eprintln!("TUI_POPUP_KEYBOARD_OK repeat=navigation-completion release=ignored modifiers=exact-control ctrl-j=newline ctrl-k=editor turns=none");
+    eprintln!(
+        "TUI_POPUP_KEYBOARD_OK repeat=navigation-completion release=ignored modifiers=exact-control ctrl-j=newline ctrl-k=editor turns=none"
+    );
 }
 
 fn exercise_empty_prompt_navigation(
@@ -197,7 +199,9 @@ fn exercise_empty_prompt_navigation(
     writer.flush().unwrap();
     wait_for_screen_marker(output_rx, output, "› aXb", Duration::from_secs(10));
     clear_draft(writer, output_rx, output);
-    eprintln!("TUI_EMPTY_NAVIGATION_OK left=press-only repeat=editor release=ignored overview=cancelled turns=none");
+    eprintln!(
+        "TUI_EMPTY_NAVIGATION_OK left=press-only repeat=editor release=ignored overview=cancelled turns=none"
+    );
 }
 
 fn exercise_empty_completion(

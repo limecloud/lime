@@ -2,7 +2,7 @@ use super::{request_context::RuntimeModelSelection, ResolvedTurnRoute, RuntimeBa
 use crate::{ExecutionRequest, RuntimeCoreError};
 use app_server_protocol::{RouteFailure, RouteFailureCategory};
 use lime_core::database::DbConnection;
-use runtime_core::ModelRouteExclusion;
+use model_routing_core::ModelRouteExclusion;
 use serde_json::{json, Value};
 
 pub(super) fn agent_control_route_snapshot_for_resolved_route(

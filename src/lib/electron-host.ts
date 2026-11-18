@@ -55,6 +55,7 @@ export interface ElectronHostDeepLinkBridge {
   onOpenUrl(handler: (urls: string[]) => void): ElectronHostUnlisten;
   getUrls(): Promise<string[]>;
   getCurrent(): Promise<string[] | null>;
+  openSessionInNewWindow?(sessionId: string): Promise<void>;
 }
 
 export interface ElectronHostBridge {

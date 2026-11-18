@@ -234,5 +234,7 @@ pub(super) fn exercise_modal_keymap(
         "configured Vim flow leaves no canonical turn or residual draft",
         |screen| screen.contains("Ask Lime to do anything") && !screen.contains("Vim:"),
     );
-    eprintln!("TUI_VIM_EMPTY_SLASH_OK empty=command nonempty=search chord=search completion=draft turns=none");
+    eprintln!(
+        "TUI_VIM_EMPTY_SLASH_OK empty=command nonempty=search chord=search completion=draft turns=none"
+    );
 }

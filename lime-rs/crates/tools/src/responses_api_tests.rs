@@ -10,8 +10,8 @@ use super::tool_definition_to_responses_api_tool;
 use crate::JsonSchema;
 use crate::ToolDefinition;
 use crate::ToolName;
-use protocol::dynamic_tools::DynamicToolFunctionSpec;
 use pretty_assertions::assert_eq;
+use protocol::dynamic_tools::DynamicToolFunctionSpec;
 use serde_json::json;
 use std::collections::BTreeMap;
 

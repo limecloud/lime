@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Check, ChevronDown, FolderTree, Plus, RefreshCw } from "lucide-react";
+import { Check, ChevronDown, Plus, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +17,28 @@ interface ThreadProjectSelectorProps {
   compact?: boolean;
   iconOnly?: boolean;
   className?: string;
+}
+
+
+function ThreadProjectFolderIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-3.5 w-3.5 shrink-0"
+      focusable="false"
+      height="16"
+      viewBox="0 0 16 16"
+      width="16"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M5.59668 2.19995C5.95191 2.20003 6.29915 2.30563 6.59473 2.50269L7.92285 3.38745C8.06511 3.48229 8.23235 3.53288 8.40332 3.53296H12.2002C13.452 3.53306 14.4668 4.54876 14.4668 5.80054V11.4666C14.4668 12.7551 13.4222 13.8003 12.1338 13.8005H3.86621C2.57776 13.8003 1.5332 12.7551 1.5332 11.4666V4.53296C1.53345 3.24466 2.57791 2.2002 3.86621 2.19995H5.59668ZM13.5332 7.80054H2.4668V11.4666C2.4668 12.2396 3.09322 12.8667 3.86621 12.8669H12.1338C12.9068 12.8667 13.5332 12.2396 13.5332 11.4666V7.80054ZM2.4668 6.86694H13.5332V5.80054C13.5332 5.06422 12.9365 4.46666 12.2002 4.46655H8.40332C8.04816 4.46648 7.70081 4.36177 7.40527 4.16479L6.07715 3.27905C5.93489 3.18421 5.76765 3.13362 5.59668 3.13354H3.86621C3.09338 3.13379 2.46704 3.76012 2.4668 4.53296V6.86694Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
 }
 
 export function ThreadProjectSelector({
@@ -81,7 +103,7 @@ export function ThreadProjectSelector({
           data-thread-project-id={directory.projectId ?? ""}
           disabled={directory.mutating}
         >
-          <FolderTree className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <ThreadProjectFolderIcon />
           {iconOnly ? null : (
             <>
               <span className="min-w-0 truncate">{currentLabel}</span>

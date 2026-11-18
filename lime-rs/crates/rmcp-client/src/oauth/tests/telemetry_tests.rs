@@ -3,9 +3,9 @@
 use super::persistor_tests::authorization_manager_for;
 use super::persistor_tests::test_context;
 use super::*;
-use otel::auth_storage::AuthStorageOriginator;
 use opentelemetry_sdk::metrics::data::AggregatedMetrics;
 use opentelemetry_sdk::metrics::data::MetricData;
+use otel::auth_storage::AuthStorageOriginator;
 use pretty_assertions::assert_eq;
 use std::collections::BTreeMap;
 
@@ -192,12 +192,10 @@ fn expected_metric(count: u64, tags: &[(&str, &str)]) -> MetricRecord {
 }
 
 fn test_metrics() -> Result<otel::MetricsClient> {
-    Ok(otel::install_global_metrics(
-        otel::MetricsClient::new(
-            otel::MetricsConfig::in_memory("test", "test", "1", Default::default())
-                .with_runtime_reader(),
-        )?,
-    ))
+    Ok(otel::install_global_metrics(otel::MetricsClient::new(
+        otel::MetricsConfig::in_memory("test", "test", "1", Default::default())
+            .with_runtime_reader(),
+    )?))
 }
 
 #[test]

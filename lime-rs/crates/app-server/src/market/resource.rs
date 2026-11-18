@@ -40,6 +40,7 @@ pub(crate) fn mcp_config(
                 .then(|| format!("LIME_MCP_{}_TOKEN", name.to_ascii_uppercase())),
             http_headers: None,
             env_http_headers: None,
+            http_headers_helper: None,
         },
         "stdio" => {
             // A bearer header / browser OAuth cannot authenticate a local stdio process.
@@ -69,7 +70,9 @@ pub(crate) fn mcp_config(
                 args: mcp.arguments.clone(),
                 env: Default::default(),
                 env_vars: Vec::new(),
-                cwd: Some(root.to_str().ok_or("invalid market MCP path")?.into()),
+                cwd: Some(lime_utils_path_uri::LegacyAppPathString::from_string(
+                    root.to_str().ok_or("invalid market MCP path")?,
+                )),
             }
         }
         _ => return Err("market MCP transport unsupported".into()),

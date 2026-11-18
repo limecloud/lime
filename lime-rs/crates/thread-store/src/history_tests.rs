@@ -14,6 +14,9 @@ mod reasoning_snapshot;
 #[path = "history_tests/async_user_input.rs"]
 mod async_user_input;
 
+#[path = "history_tests/replay.rs"]
+mod replay;
+
 fn item(sequence: u64, ordinal: u64, id: &str, text: &str) -> ThreadItem {
     ThreadItem {
         session_id: SessionId::new("session-1"),

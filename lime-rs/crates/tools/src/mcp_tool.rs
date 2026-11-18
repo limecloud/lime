@@ -2,9 +2,9 @@ use crate::ToolDefinition;
 use crate::ToolOutputSchema;
 use crate::json_schema::parse_tool_input_schema_with_max_bytes;
 use crate::parse_tool_input_schema;
-use utils_string::take_bytes_at_char_boundary;
 use serde_json::Value as JsonValue;
 use serde_json::json;
+use utils_string::take_bytes_at_char_boundary;
 
 const MAX_MCP_TOOL_DESCRIPTION_BYTES: usize = 1_000;
 

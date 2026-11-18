@@ -46,14 +46,10 @@ impl ProjectionStore {
                         .is_some_and(serde_json::Value::is_string)
             })
         {
-            let history = stored
-                .events
-                .iter()
-                .chain(events)
-                .cloned()
-                .collect::<Vec<_>>();
+            // Replay borrowed events: cloning large provider/model-history
+            // payloads here holds the runtime lock throughout allocation/drop.
             let complete = super::super::thread_item_projection::materialize_events(
-                &history,
+                stored.events.iter().chain(events),
                 &stored.session.session_id,
                 &stored.session.thread_id,
             )

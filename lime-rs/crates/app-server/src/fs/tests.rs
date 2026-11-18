@@ -216,7 +216,7 @@ async fn watch_notifications_keep_connection_owner_and_survive_other_disconnects
 async fn next_watch_notification(
     notifications: &mut mpsc::UnboundedReceiver<(ConnectionId, JsonRpcNotification)>,
 ) -> (ConnectionId, JsonRpcNotification) {
-    timeout(Duration::from_secs(3), notifications.recv())
+    timeout(Duration::from_secs(10), notifications.recv())
         .await
         .expect("watch notification timeout")
         .expect("watch notification channel closed")

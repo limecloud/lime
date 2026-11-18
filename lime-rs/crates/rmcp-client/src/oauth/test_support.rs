@@ -10,9 +10,7 @@ use tempfile::tempdir;
 /// Client construction loads platform/custom CA state and can be slow on developer hosts.
 /// Use a separate local endpoint so warmup cannot affect the test server's request assertions;
 /// the same production HTTP capability still applies all proxy and certificate policy.
-pub(crate) async fn warm_http_client(
-    client: &dyn exec_server::HttpClient,
-) -> anyhow::Result<()> {
+pub(crate) async fn warm_http_client(client: &dyn exec_server::HttpClient) -> anyhow::Result<()> {
     let server = wiremock::MockServer::start().await;
     client
         .http_request(exec_server::HttpRequestParams {

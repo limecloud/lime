@@ -4,16 +4,16 @@ use crate::ToolPayload;
 use attachment_store::AttachmentStore;
 use extension_items::ExtensionItem;
 use file_system::EnvironmentAccess;
+use lime_utils_path_uri::PathUri;
 use protocol::models::ResponseItem;
 use protocol::protocol::EventMsg;
-use utils_output_truncation::TruncationPolicy;
-use utils_output_truncation::with_serialization_allowance;
-use lime_utils_path_uri::PathUri;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::LazyLock;
+use utils_output_truncation::TruncationPolicy;
+use utils_output_truncation::with_serialization_allowance;
 
 /// Raw response history snapshot available when an extension tool is invoked.
 #[derive(Clone)]
@@ -168,10 +168,7 @@ impl std::fmt::Debug for ToolCall<'_> {
             .field("call_id", &self.call_id)
             .field("tool_name", &self.tool_name)
             .field("model", &self.model)
-            .field(
-                "has_lime_turn_metadata",
-                &self.lime_turn_metadata.is_some(),
-            )
+            .field("has_lime_turn_metadata", &self.lime_turn_metadata.is_some())
             .field("truncation_policy", &self.truncation_policy)
             .field("source", &self.source)
             .field("conversation_history", &self.conversation_history)

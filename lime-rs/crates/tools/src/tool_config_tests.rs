@@ -1,7 +1,7 @@
 use features::Feature;
 use features::Features;
-use protocol::config_types::ModeKind;
 use pretty_assertions::assert_eq;
+use protocol::config_types::ModeKind;
 
 use super::*;
 

@@ -22,7 +22,7 @@ guardian-context = { path = "../guardian-context" }
 lime-utils-absolute-path.workspace = true
 protocol = { path = "../protocol" }
 tracing.workspace = true
-utils-template = { path = "../utils-template" }
+utils-template = { path = "../utils-template", package = "lime-utils-template" }
 whoami = "1"
 
 [dev-dependencies]

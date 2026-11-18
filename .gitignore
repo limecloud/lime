@@ -8,7 +8,8 @@ release-electron/
 release-assets/
 release-github-assets/
 windows-test-package/
-.cargo/
+.cargo/*
+!.cargo/config.toml
 lime-rs/.cargo/
 *.exe
 *.pdb
@@ -74,6 +75,8 @@ internal/exec-plans/*
 !internal/exec-plans/codex-thread-fork-alignment.md
 !internal/exec-plans/codex-rollout-context-alignment.md
 !internal/exec-plans/release-v1.165.0-plan.md
+!internal/exec-plans/release-v1.180.0-plan.md
+!internal/exec-plans/deepswe-session-bringup-20261117.md
 !internal/exec-plans/file-tree-search-20261020.md
 !internal/exec-plans/file-menus-20261020.md
 !internal/exec-plans/composer-project-knowledge-removal-plan.md

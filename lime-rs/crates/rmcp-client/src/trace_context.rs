@@ -3,9 +3,9 @@
 
 use std::future::Future;
 
-use protocol::protocol::W3cTraceContext;
 use http::HeaderMap;
 use http::HeaderValue;
+use protocol::protocol::W3cTraceContext;
 use rmcp::model::CustomRequest;
 use rmcp::model::PaginatedRequestParams;
 use rmcp::model::RequestMetaObject;

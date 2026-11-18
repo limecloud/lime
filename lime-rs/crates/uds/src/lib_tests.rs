@@ -28,9 +28,9 @@ async fn private_directory_rejects_junctions() {
     let junction = temp.path().join("junction");
     std::fs::create_dir(&target).expect("target");
     let output = std::process::Command::new("powershell.exe")
-        .args(["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; New-Item -ItemType Junction -Path $env:CODEX_TEST_LINK -Target $env:CODEX_TEST_TARGET | Out-Null"])
-        .env("CODEX_TEST_LINK", &junction)
-        .env("CODEX_TEST_TARGET", &target)
+        .args(["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; New-Item -ItemType Junction -Path $env:LIME_TEST_LINK -Target $env:LIME_TEST_TARGET | Out-Null"])
+        .env("LIME_TEST_LINK", &junction)
+        .env("LIME_TEST_TARGET", &target)
         .output().expect("create junction");
     assert!(
         output.status.success(),
@@ -74,7 +74,7 @@ async fn socket_validation_rejects_broad_acl_without_repairing_it() {
     let inspect = |script: &str| {
         let output = std::process::Command::new("powershell.exe")
             .args(["-NoProfile", "-NonInteractive", "-Command", script])
-            .env("CODEX_TEST_DIRECTORY", &directory)
+            .env("LIME_TEST_DIRECTORY", &directory)
             .output()
             .unwrap();
         assert!(
@@ -87,12 +87,12 @@ async fn socket_validation_rejects_broad_acl_without_repairing_it() {
     let before = inspect(
         r#"
 $ErrorActionPreference = 'Stop'
-$acl = Get-Acl -LiteralPath $env:CODEX_TEST_DIRECTORY
+$acl = Get-Acl -LiteralPath $env:LIME_TEST_DIRECTORY
 $everyone = [System.Security.Principal.SecurityIdentifier]::new('S-1-1-0')
 $rule = [System.Security.AccessControl.FileSystemAccessRule]::new($everyone, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
 $acl.AddAccessRule($rule)
-Set-Acl -LiteralPath $env:CODEX_TEST_DIRECTORY -AclObject $acl
-(Get-Acl -LiteralPath $env:CODEX_TEST_DIRECTORY).Sddl
+Set-Acl -LiteralPath $env:LIME_TEST_DIRECTORY -AclObject $acl
+(Get-Acl -LiteralPath $env:LIME_TEST_DIRECTORY).Sddl
 "#,
     );
     assert_eq!(
@@ -111,7 +111,7 @@ Set-Acl -LiteralPath $env:CODEX_TEST_DIRECTORY -AclObject $acl
     assert_eq!(
         before,
         inspect(
-            "$ErrorActionPreference = 'Stop'; (Get-Acl -LiteralPath $env:CODEX_TEST_DIRECTORY).Sddl"
+            "$ErrorActionPreference = 'Stop'; (Get-Acl -LiteralPath $env:LIME_TEST_DIRECTORY).Sddl"
         )
     );
 }
@@ -150,16 +150,16 @@ async fn private_directory_acl_is_user_only_and_inherited_by_files() {
         .args(["-NoProfile", "-NonInteractive", "-Command", r#"
 $ErrorActionPreference = 'Stop'
 $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-$directory = Get-Acl -LiteralPath $env:CODEX_TEST_PRIVATE_DIRECTORY
+$directory = Get-Acl -LiteralPath $env:LIME_TEST_PRIVATE_DIRECTORY
 if (-not $directory.AreAccessRulesProtected) { throw 'directory inherits broad access' }
-foreach ($acl in @($directory, (Get-Acl -LiteralPath (Join-Path $env:CODEX_TEST_PRIVATE_DIRECTORY 'child')), (Get-Acl -LiteralPath (Join-Path $env:CODEX_TEST_PRIVATE_DIRECTORY 'socket')))) {
+foreach ($acl in @($directory, (Get-Acl -LiteralPath (Join-Path $env:LIME_TEST_PRIVATE_DIRECTORY 'child')), (Get-Acl -LiteralPath (Join-Path $env:LIME_TEST_PRIVATE_DIRECTORY 'socket')))) {
     $rules = @($acl.Access)
     if ($rules.Count -ne 1) { throw 'unexpected access rules' }
     if ($rules[0].IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -ne $sid) { throw 'wrong user' }
     if ($rules[0].AccessControlType -ne 'Allow') { throw 'user is denied access' }
 }
 "#])
-        .env("CODEX_TEST_PRIVATE_DIRECTORY", &directory)
+        .env("LIME_TEST_PRIVATE_DIRECTORY", &directory)
         .output().expect("inspect ACLs");
     assert!(
         output.status.success(),

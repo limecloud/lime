@@ -8,7 +8,7 @@ use std::path::Path;
 use tempfile::TempDir;
 
 #[cfg(unix)]
-const SYMLINKED_TMPDIR_TEST_ENV: &str = "CODEX_PROTOCOL_TEST_SYMLINKED_TMPDIR";
+const SYMLINKED_TMPDIR_TEST_ENV: &str = "LIME_PROTOCOL_TEST_SYMLINKED_TMPDIR";
 
 #[cfg(unix)]
 fn symlink_dir(original: &Path, link: &Path) -> std::io::Result<()> {

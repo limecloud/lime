@@ -62,7 +62,7 @@ pub(super) fn responses_websocket(
             allow_openai_response_metadata,
         );
         if let Some(model) = server_model {
-            yield runtime_core::CanonicalLlmEvent::ServerModel { model };
+            yield model_routing_core::CanonicalLlmEvent::ServerModel { model };
         }
         loop {
             let message = tokio::time::timeout(DEFAULT_STREAM_IDLE_TIMEOUT, lease.socket()?.next())
