@@ -64,6 +64,7 @@ import {
   SettingsLoading,
   SettingsValueMenu,
 } from "../SettingsPrimitives";
+import { NotificationsSettings } from "./notifications";
 
 export function GeneralSettings() {
   const { t } = useTranslation("settings");
@@ -649,6 +650,9 @@ export function GeneralSettings() {
             />
           </SettingsRow>
         </SettingsGroup>
+      </SettingsSection>
+      <SettingsSection title={t("settings.notifications.title")}>
+        <NotificationsSettings embedded />
       </SettingsSection>
       <SourceLicensesDialog
         open={licensesOpen}

@@ -28,7 +28,11 @@ import {
   SettingsValueMenu,
 } from "../../SettingsPrimitives";
 
-export function NotificationsSettings() {
+export function NotificationsSettings({
+  embedded = false,
+}: {
+  embedded?: boolean;
+} = {}) {
   const { t } = useTranslation("settings");
   const notifications = useNotificationPreferences();
   const [permission, setPermission] = useState<DesktopPermissionState | null>(
@@ -91,9 +95,7 @@ export function NotificationsSettings() {
     setNotificationPreferences({ sound: value as NotificationSoundChoice });
   };
 
-  return (
-    <SettingsPageBody>
-      <SettingsPageHeader title={t("settings.notifications.title")} />
+  const group = (
       <SettingsGroup>
         <SettingsRow
           label={
@@ -218,6 +220,12 @@ export function NotificationsSettings() {
           </div>
         </SettingsRow>
       </SettingsGroup>
+  );
+  if (embedded) return group;
+  return (
+    <SettingsPageBody>
+      <SettingsPageHeader title={t("settings.notifications.title")} />
+      {group}
     </SettingsPageBody>
   );
 }

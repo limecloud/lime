@@ -12,7 +12,6 @@ import {
   Image,
   Server,
   Puzzle,
-  Bell,
   Blocks,
   MousePointer2,
   Cloud,
@@ -76,12 +75,6 @@ const WorktreesSettings = lazy(() =>
 );
 const GitSettings = lazy(() =>
   loadGit().then((module) => ({ default: module.GitSettings })),
-);
-const loadNotifications = () => import("./general/notifications");
-const NotificationsSettings = lazy(() =>
-  loadNotifications().then((module) => ({
-    default: module.NotificationsSettings,
-  })),
 );
 const GeneralSettings = lazy(() =>
   loadGeneral().then((module) => ({ default: module.GeneralSettings })),
@@ -260,15 +253,6 @@ export const settingsSections: readonly SettingsSection[] = [
     render: (context) => (
       <DeviceStorageSettings onNavigate={context.onNavigate} />
     ),
-  },
-  {
-    key: SettingsTabs.Notifications,
-    group: SettingsGroupKey.Personal,
-    labelKey: "settings.notifications.title",
-    icon: Bell,
-    loadingKey: "settings.layout.loading.notifications",
-    preload: loadNotifications,
-    render: () => <NotificationsSettings />,
   },
   {
     key: SettingsTabs.Configuration,
