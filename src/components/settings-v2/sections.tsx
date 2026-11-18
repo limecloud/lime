@@ -10,7 +10,6 @@ import {
   Brain,
   Mic,
   Image,
-  Server,
   Puzzle,
   MousePointer2,
   Cloud,
@@ -133,13 +132,6 @@ const loadPluginsCatalog = () =>
 const PluginsCatalogSettings = lazy(() =>
   loadPluginsCatalog().then((module) => ({
     default: module.PluginCatalogPage,
-  })),
-);
-
-const loadMcpServers = () => import("./integrations/mcp");
-const McpServersSettings = lazy(() =>
-  loadMcpServers().then((module) => ({
-    default: module.McpServersSettings,
   })),
 );
 
@@ -348,15 +340,6 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: Cloud,
     preload: loadCloudDesktops,
     render: () => <CloudDesktopsSettings />,
-  },
-  {
-    key: SettingsTabs.McpServers,
-    group: SettingsGroupKey.Integrations,
-    labelKey: "settings.mcp.navTitle",
-    icon: Server,
-    loadingKey: "settings.mcp.loading",
-    preload: loadMcpServers,
-    render: (context) => <McpServersSettings onNavigate={context.onNavigate} />,
   },
   {
     key: SettingsTabs.Hooks,

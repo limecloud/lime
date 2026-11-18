@@ -8,6 +8,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppNavigationRequest } from "@/contexts/AppNavigationContext";
+import { McpServersSettings } from "@/components/settings-v2/integrations/mcp";
 import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import {
   ChevronDown,
@@ -817,6 +818,8 @@ function PluginCatalogContent({
           </div>
         </div>
       ) : null}
+
+      <McpServersSettings embedded />
 
       <PluginCatalogDialogs
         installTarget={installTarget}
