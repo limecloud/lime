@@ -39,6 +39,7 @@ import {
 } from "./useProviderSelection";
 import { ModelSelectorTrigger } from "./ModelSelectorTrigger";
 import { useModelReasoningEffort } from "./useModelReasoningEffort";
+import { resolveModelReasoningEffortForModelSwitch } from "@/lib/model/modelReasoningPolicy";
 
 const itemClassName =
   "flex w-full items-center justify-between gap-2 rounded-md border-[0.5px] border-transparent px-2.5 py-2 text-left text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--lime-brand)]";
@@ -50,6 +51,17 @@ const NO_PROVIDER_GUIDE_DISMISSED_STORAGE_KEY =
 
 function resolveProviderSelectionValue(provider: ConfiguredProvider): string {
   return provider.providerId ?? provider.key;
+}
+
+function formatCompactModelLabel(label: string): string {
+  const match = label.match(/^gpt-(\d+(?:\.\d+)*)-(.+)$/i);
+  if (!match) return label;
+  const name = match[2]
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+  return `${match[1]} ${name}`;
 }
 
 function resolveInitialProviderModel(provider: ConfiguredProvider): string {
@@ -402,9 +414,21 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     return () =>
       window.removeEventListener("lime:cycle-reasoning-effort", cycle);
   }, [reasoningEffort, selectedReasoningEffortOptions, setReasoningEffort]);
-  const selectedReasoningEffort = selectedReasoningEffortOption?.value ?? "";
-  const selectedReasoningEffortLabel = selectedReasoningEffortOption
-    ? reasoningEffortLabel(selectedReasoningEffortOption)
+  const effectiveReasoningEffortOption =
+    selectedReasoningEffortOption ??
+    (selectedModelOption?.metadata.reasoning_policy
+      ? selectedReasoningEffortOptions.find(
+          (option) =>
+            option.value ===
+            resolveModelReasoningEffortForModelSwitch(
+              selectedModelOption.metadata.reasoning_policy,
+              reasoningEffort,
+            ),
+        )
+      : undefined);
+  const selectedReasoningEffort = effectiveReasoningEffortOption?.value ?? "";
+  const selectedReasoningEffortLabel = effectiveReasoningEffortOption
+    ? reasoningEffortLabel(effectiveReasoningEffortOption)
     : "";
 
   useEffect(() => {
@@ -644,7 +668,11 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             providerType={compactProviderType}
             providerLabel={compactProviderLabel}
             selectedProviderLabel={selectedProviderLabel}
-            modelLabel={selectedModelLabel}
+            modelLabel={
+              compactTrigger
+                ? formatCompactModelLabel(selectedModelLabel)
+                : selectedModelLabel
+            }
             reasoningLabel={selectedReasoningLabel}
             placeholderLabel={
               showPlaceholderSelection ? resolvedPlaceholderLabel : undefined

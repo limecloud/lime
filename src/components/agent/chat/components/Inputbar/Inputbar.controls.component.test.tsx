@@ -54,6 +54,8 @@ describe("Inputbar controls current integration", () => {
     const { container } = renderInputbar({
       accessMode: "full-access",
       setAccessMode: vi.fn(),
+      input: "hello",
+      setInput: vi.fn(),
     });
     await act(async () => {
       await Promise.resolve();

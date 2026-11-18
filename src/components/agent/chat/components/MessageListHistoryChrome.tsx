@@ -96,9 +96,6 @@ export function SessionDraftWelcome() {
       <h2 className="text-xl font-normal text-[color:var(--lime-text-strong)]">
         {t("agentChat.messageList.sessionEmpty.title")}
       </h2>
-      <p className="max-w-[30rem] text-sm leading-6 text-[color:var(--lime-text-muted)]">
-        {t("agentChat.messageList.sessionEmpty.description")}
-      </p>
     </div>
   );
 }

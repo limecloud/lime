@@ -306,7 +306,9 @@ export const Inputbar: React.FC<InputbarProps> = ({
         onCancel={goalComposer.handleCloseGoalReplacement}
         onConfirm={() => void goalComposer.handleConfirmGoalReplacement()}
       />
-      {accessMode === "full-access" && !fullAccessNoticeDismissed ? (
+      {accessMode === "full-access" &&
+      !fullAccessNoticeDismissed &&
+      input.trim().length > 0 ? (
         <div
           data-testid="composer-full-access-notice"
           className="mx-3 mb-2 flex items-start gap-2 rounded-xl border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface-muted)] px-3 py-2 text-xs leading-5 text-[color:var(--lime-text-muted)]"
