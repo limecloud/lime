@@ -315,8 +315,8 @@ describe("LayoutTransition", () => {
       handle.focus();
     });
     expect(handle.tabIndex).toBe(0);
-    expect(handle.getAttribute("aria-valuemin")).toBe("320");
-    expect(handle.getAttribute("aria-valuemax")).toBe("858");
+    expect(handle.getAttribute("aria-valuemin")).toBe("280");
+    expect(handle.getAttribute("aria-valuemax")).toBe("898");
     expect(handle.getAttribute("aria-valuenow")).toBe("578");
     const key = (name: string) => {
       const event = new KeyboardEvent("keydown", {
@@ -335,13 +335,13 @@ describe("LayoutTransition", () => {
     expect(key("ArrowLeft")).toBe(true);
     expect(chat.dataset.chatPanelWidth).toBe("600px");
     key("Home");
-    expect(chat.dataset.chatPanelWidth).toBe("858px");
+    expect(chat.dataset.chatPanelWidth).toBe("898px");
     key("ArrowRight");
-    expect(chat.dataset.chatPanelWidth).toBe("858px");
+    expect(chat.dataset.chatPanelWidth).toBe("898px");
     key("End");
-    expect(chat.dataset.chatPanelWidth).toBe("320px");
+    expect(chat.dataset.chatPanelWidth).toBe("280px");
     key("ArrowLeft");
-    expect(chat.dataset.chatPanelWidth).toBe("320px");
+    expect(chat.dataset.chatPanelWidth).toBe("280px");
     expect(key("ArrowDown")).toBe(false);
     act(() => {
       handle.dispatchEvent(

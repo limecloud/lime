@@ -297,16 +297,16 @@ export function ScheduledTaskList({
           </div>
         ) : (
           <div className="flex flex-col items-start px-3 pb-3 pt-1 text-left">
-            <p className="text-[13px] font-medium text-slate-400">
-              {query || filter !== "all"
-                ? t("scheduledTasks.empty.filtered.title")
-                : t("scheduledTasks.sidebar.empty")}
-            </p>
-            <p className="mt-1 text-[11px] leading-5 text-slate-400">
-              {query || filter !== "all"
-                ? t("scheduledTasks.empty.filtered.description")
-                : null}
-            </p>
+            {query || filter !== "all" ? (
+              <>
+                <p className="text-[13px] font-medium text-slate-400">
+                  {t("scheduledTasks.empty.filtered.title")}
+                </p>
+                <p className="mt-1 text-[11px] leading-5 text-slate-400">
+                  {t("scheduledTasks.empty.filtered.description")}
+                </p>
+              </>
+            ) : null}
             {query || filter !== "all" ? (
               <Button
                 variant="outline"

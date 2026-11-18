@@ -47,6 +47,7 @@ export type SkillsWorkspaceTranslate = TFunction<"agent">;
 
 export interface SkillsWorkspaceProjectState {
   id: string | null;
+  name?: string | null;
   rootPath: string | null;
   pending: boolean;
   error: string | null;

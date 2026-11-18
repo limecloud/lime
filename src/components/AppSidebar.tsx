@@ -18,8 +18,7 @@ import {
   ChevronDown,
   Home,
   Search,
-  PanelLeftClose,
-  PanelLeftOpen,
+  PanelLeft,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -41,6 +40,7 @@ import {
 } from "@/lib/navigation/sidebarNav";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LIME_BRAND_NAME } from "@/lib/branding";
+import { PluginNavIcon } from "./app-sidebar/PluginNavIcon";
 import { selectPrioritySessions } from "@/components/app-sidebar/sidebarPrioritySessions";
 import { useCommand } from "@/lib/commands/useCommand";
 import { AppSidebarCustomization } from "@/components/app-sidebar/AppSidebarCustomization";
@@ -771,7 +771,7 @@ export function AppSidebar({
         aria-current={active ? "page" : undefined}
         data-testid={`app-sidebar-nav-${item.id}`}
       >
-        <item.icon />
+        {item.id === "plugins" ? <PluginNavIcon /> : <item.icon />}
         {iconOnly ? (
           <span className="sr-only">{displayLabel}</span>
         ) : (
@@ -939,21 +939,8 @@ export function AppSidebar({
             }
             onClick={toggleSidebarCollapsed}
           >
-            {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
+            <PanelLeft />
           </IconActionButton>
-        </HeaderAction>
-      ) : null}
-      {isAgentWorkspace ? (
-        <HeaderAction
-          actionId="titlebar-divider"
-          slotPosition="left"
-          order={3}
-        >
-          <span
-            aria-hidden="true"
-            className="mx-1 h-4 w-px shrink-0 bg-[color:var(--lime-chrome-border)]"
-            data-testid="titlebar-divider"
-          />
         </HeaderAction>
       ) : null}
       <Container
@@ -994,7 +981,7 @@ export function AppSidebar({
                 });
               }}
             >
-              <Home fill="currentColor" />
+              <Home />
               {unreadSessionCount > 0 ? (
                 <span
                   aria-hidden="true"

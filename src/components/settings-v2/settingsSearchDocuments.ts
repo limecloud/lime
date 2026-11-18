@@ -305,7 +305,7 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     termKeys: ["settings.desktop.defaultStandaloneChatDescription"],
   },
   {
-    section: SettingsTabs.Notifications,
+    section: SettingsTabs.General,
     targetId: "general-turn-notifications",
     labelKey: "settings.notifications.turnComplete",
     termKeys: [
@@ -316,19 +316,19 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     ],
   },
   {
-    section: SettingsTabs.Notifications,
+    section: SettingsTabs.General,
     targetId: "general-permission-notifications",
     labelKey: "settings.notifications.permissions",
     termKeys: ["settings.notifications.permissionsDescription"],
   },
   {
-    section: SettingsTabs.Notifications,
+    section: SettingsTabs.General,
     targetId: "general-question-notifications",
     labelKey: "settings.notifications.questions",
     termKeys: ["settings.notifications.questionsDescription"],
   },
   {
-    section: SettingsTabs.Notifications,
+    section: SettingsTabs.General,
     targetId: "general-notification-sound",
     labelKey: "settings.notifications.sound",
     termKeys: [
@@ -342,7 +342,7 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     ],
   },
   {
-    section: SettingsTabs.Notifications,
+    section: SettingsTabs.General,
     targetId: "general-system-notifications",
     labelKey: "settings.notifications.system",
     termKeys: [
@@ -352,7 +352,7 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     ],
   },
   {
-    section: SettingsTabs.McpServers,
+    section: SettingsTabs.Plugins,
     targetId: "mcp-servers",
     labelKey: "settings.mcp.title",
     termKeys: [
@@ -472,7 +472,7 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     ],
   },
   {
-    section: SettingsTabs.BrowserExtension,
+    section: SettingsTabs.Browser,
     targetId: "browser-extension-manager",
     labelKey: "settings.browser.extensionManager",
     termKeys: [

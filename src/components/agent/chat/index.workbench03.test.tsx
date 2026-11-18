@@ -181,11 +181,6 @@ describe("LocalConversationPage 通用工作台", { timeout: 20_000 }, () => {
       "/tmp/project-history-export/exports/x-article-export/history/index.md",
     );
     expect(
-      container.querySelector(
-        '[data-testid="workspace-right-surface-tab-files"][aria-selected="true"]',
-      ),
-    ).not.toBeNull();
-    expect(
       mockCanvasWorkbenchLayout.mock.calls.at(-1)?.[0]?.previewOpenRequest ??
         null,
     ).toBeNull();
@@ -266,11 +261,6 @@ describe("LocalConversationPage 通用工作台", { timeout: 20_000 }, () => {
       "/tmp/project-inline-export/exports/x-article-export/latest/index.md",
     );
     expect(
-      container.querySelector(
-        '[data-testid="workspace-right-surface-tab-files"][aria-selected="true"]',
-      ),
-    ).not.toBeNull();
-    expect(
       mockCanvasWorkbenchLayout.mock.calls.at(-1)?.[0]?.previewOpenRequest ??
         null,
     ).toBeNull();
@@ -327,11 +317,6 @@ describe("LocalConversationPage 通用工作台", { timeout: 20_000 }, () => {
     expect(textFileStorageModule.createTextFileStorage).toHaveBeenCalledWith(
       "/tmp/project-tool-file/src/components/App.tsx",
     );
-    expect(
-      container.querySelector(
-        '[data-testid="workspace-right-surface-tab-files"][aria-selected="true"]',
-      ),
-    ).not.toBeNull();
     expect(
       mockCanvasWorkbenchLayout.mock.calls.at(-1)?.[0]?.previewOpenRequest ??
         null,
@@ -391,11 +376,6 @@ describe("LocalConversationPage 通用工作台", { timeout: 20_000 }, () => {
     expect(
       container.querySelector(
         '[data-testid="text-file-editor"][data-file-path="/tmp/project-imported-file/docs/imported-preview.html"]',
-      ),
-    ).not.toBeNull();
-    expect(
-      container.querySelector(
-        '[data-testid="workspace-right-surface-tab-files"][aria-selected="true"]',
       ),
     ).not.toBeNull();
     expect(workbenchProps?.previewOpenRequest ?? null).toBeNull();

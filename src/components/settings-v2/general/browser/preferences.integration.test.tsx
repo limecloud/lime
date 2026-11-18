@@ -23,6 +23,13 @@ const { request, pickFiles } = vi.hoisted(() => ({
   pickFiles: vi.fn(),
 }));
 vi.mock("@/lib/api/filePicker", () => ({ pickFilesFromDialog: pickFiles }));
+vi.mock("@/lib/api/browserExtensions", () => ({
+  listBrowserExtensions: async () => [],
+  loadBrowserExtension: vi.fn(),
+  importChromeBrowserExtensions: vi.fn(),
+  removeBrowserExtension: vi.fn(),
+  setBrowserExtensionEnabled: vi.fn(),
+}));
 vi.mock("@/lib/api/appServer", () => ({
   AppServerClient: class {
     request = request;

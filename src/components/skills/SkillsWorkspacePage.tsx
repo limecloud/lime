@@ -3,6 +3,7 @@ import { open as openDialog } from "@/lib/desktop-host/dialog";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { useSkills } from "@/hooks/useSkills";
+import { listProjects, type Project } from "@/lib/api/project";
 import {
   skillsApi,
   type CreateSkillScaffoldRequest,
@@ -83,6 +84,7 @@ export function SkillsWorkspacePage({
   } = useSkills("lime", { includeRepos: false });
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [projects, setProjects] = useState<Project[]>([]);
   const [activeView, setActiveView] = useState<SkillsWorkspaceView>(() => {
     switch (pageParams?.initialView) {
       case "store":
@@ -137,21 +139,24 @@ export function SkillsWorkspacePage({
     null,
   );
   const creationProjectId = pageParams?.creationProjectId?.trim() || undefined;
+  const selectedProjectId = activeView.startsWith("project:")
+    ? activeView.slice("project:".length)
+    : creationProjectId;
 
   const navigateToSkill = useCallback(
     (skill: Skill) => {
       onNavigate("agent", {
-        ...buildHomeAgentParams({ projectId: creationProjectId }),
+        ...buildHomeAgentParams({ projectId: selectedProjectId }),
         initialInputCapability: { skill, requestKey: Date.now() },
         preferHomeForInitialInputCapability: true,
       });
     },
-    [creationProjectId, onNavigate],
+    [selectedProjectId, onNavigate],
   );
 
   const { currentProjectState } = useSkillsWorkspaceProject({
     activeView,
-    creationProjectId,
+    creationProjectId: selectedProjectId,
     localSkillsLoading,
   });
   const {
@@ -398,16 +403,39 @@ export function SkillsWorkspacePage({
     [visibleInstalledLocalSkills],
   );
   const skillStoreCount = skillStoreItems.length;
+  useEffect(() => {
+    let cancelled = false;
+    void listProjects()
+      .then((items) => {
+        if (!cancelled) {
+          setProjects(
+            items.filter((item) => !item.isArchived && !item.isDefault),
+          );
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const viewTabs: SkillsWorkspaceViewTab[] = [
     {
       key: "installed",
       label: t("skills.workspace.view.installed"),
       count: visibleUserInstalledSkills.length,
     },
-    {
-      key: "repo",
-      label: t("skills.workspace.view.repo"),
-    },
+    ...(projects.length > 0
+      ? projects.map((project) => ({
+          key: `project:${project.id}` as SkillsWorkspaceView,
+          label: project.name,
+        }))
+      : [
+          {
+            key: "repo" as SkillsWorkspaceView,
+            label: t("skills.workspace.view.repo"),
+          },
+        ]),
     {
       key: "builtin",
       label: t("skills.workspace.view.builtin"),

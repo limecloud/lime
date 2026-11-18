@@ -414,14 +414,16 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     return () =>
       window.removeEventListener("lime:cycle-reasoning-effort", cycle);
   }, [reasoningEffort, selectedReasoningEffortOptions, setReasoningEffort]);
+  const selectedReasoningPolicy =
+    selectedModelOption?.metadata.reasoning_policy;
   const effectiveReasoningEffortOption =
     selectedReasoningEffortOption ??
-    (selectedModelOption?.metadata.reasoning_policy
+    (selectedReasoningPolicy
       ? selectedReasoningEffortOptions.find(
           (option) =>
             option.value ===
             resolveModelReasoningEffortForModelSwitch(
-              selectedModelOption.metadata.reasoning_policy,
+              selectedReasoningPolicy,
               reasoningEffort,
             ),
         )
@@ -570,9 +572,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             : t("common.modelSelector.placeholder"));
   const selectedReasoningLabel =
     selectedReasoningEffortLabel && !showPlaceholderSelection
-      ? t("common.modelSelector.reasoning.trigger", {
-          level: selectedReasoningEffortLabel,
-        })
+      ? selectedReasoningEffortLabel
       : undefined;
   const showNoProviderGuide =
     shouldLoadProviders &&
@@ -794,52 +794,42 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                   className="mb-2 rounded-lg border-[0.5px] border-[var(--lime-surface-border)] bg-[var(--lime-surface-hover)] px-2.5 py-2"
                   data-testid="model-selector-reasoning-effort"
                 >
-                  <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
-                    <div className="text-xs font-semibold text-[var(--lime-text-muted)]">
-                      {t("common.modelSelector.reasoning.title")}
+                  <div className="flex flex-col gap-2 px-1">
+                    <div className="text-center text-[13px] font-semibold text-[var(--lime-text-strong)]">
+                      {effectiveReasoningEffortOption
+                        ? reasoningEffortLabel(effectiveReasoningEffortOption)
+                        : ""}
                     </div>
-                  </div>
-                  <div
-                    className="grid gap-1"
-                    style={{
-                      gridTemplateColumns:
-                        "repeat(auto-fit, minmax(min(100%, 5.5rem), 1fr))",
-                    }}
-                  >
-                    {selectedReasoningEffortOptions.map((option) => {
-                      const label = reasoningEffortLabel(option);
-                      const selected =
-                        selectedReasoningEffort === option.value ||
-                        (!selectedReasoningEffort &&
-                          option.value ===
-                            resolveReasoningEffortForModelSwitch(
-                              selectedModelOption?.metadata,
-                              reasoningEffort,
-                            ));
-                      return (
-                        <button
-                          key={option.id}
-                          type="button"
-                          aria-pressed={selected}
-                          aria-label={t("common.modelSelector.reasoning.aria", {
-                            level: label,
-                          })}
-                          title={label}
-                          className={cn(
-                            "inline-flex h-7 min-w-0 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium",
-                            selected
-                              ? "bg-[var(--lime-text-strong)] text-[var(--lime-surface)]"
-                              : "text-[var(--lime-text-muted)] hover:bg-[var(--lime-surface)] hover:text-[var(--lime-text-strong)]",
-                          )}
-                          onClick={() => setReasoningEffort?.(option.value)}
-                        >
-                          <span className="truncate">{label}</span>
-                          {selected ? (
-                            <Check size={12} className="shrink-0 opacity-80" />
-                          ) : null}
-                        </button>
-                      );
-                    })}
+                    <input
+                      type="range"
+                      min={0}
+                      max={Math.max(0, selectedReasoningEffortOptions.length - 1)}
+                      step={1}
+                      value={Math.max(
+                        0,
+                        selectedReasoningEffortOptions.findIndex(
+                          (option) =>
+                            option.value === selectedReasoningEffort,
+                        ),
+                      )}
+                      aria-label={t("common.modelSelector.reasoning.title")}
+                      aria-valuetext={
+                        effectiveReasoningEffortOption
+                          ? reasoningEffortLabel(effectiveReasoningEffortOption)
+                          : undefined
+                      }
+                      className="h-4 w-full cursor-pointer accent-[#0a84ff]"
+                      onChange={(event) => {
+                        const option =
+                          selectedReasoningEffortOptions[
+                            Number(event.currentTarget.value)
+                          ];
+                        if (option) setReasoningEffort?.(option.value);
+                      }}
+                    />
+                    <div className="text-center text-[10px] text-[var(--lime-text-muted)]">
+                      {t("common.modelSelector.reasoning.choose")}
+                    </div>
                   </div>
                 </div>
               ) : null}

@@ -234,13 +234,6 @@ describe("SettingsPage Profile Tab", () => {
   );
 });
 
-describe("SettingsPage MCP Tab", () => {
-  it("MCP 设置页通过唯一登记渲染", async () => {
-    const container = renderComponent(SettingsTabs.McpServers);
-    await flushEffects();
-    expect(container.textContent).toContain("mcp-servers");
-  });
-});
 
 describe("SettingsPage browser return owner", () => {
   it("在分组与搜索跳转后保留原canonical会话，普通子页参数不随之复制", async () => {
@@ -497,7 +490,6 @@ describe("SettingsPage current sections", () => {
     [SettingsTabs.Import, "import"],
     [SettingsTabs.AppSnapshots, "app-snapshots"],
     [SettingsTabs.Plugins, "plugins"],
-    [SettingsTabs.McpServers, "mcp-servers"],
     [SettingsTabs.MediaServices, "media-services"],
     [SettingsTabs.Connections, "connections"],
     [SettingsTabs.LocalEnvironments, "local-environments"],

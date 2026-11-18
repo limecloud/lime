@@ -22,8 +22,13 @@ export function useSkillsWorkspaceProject({
       error: null,
     });
 
+  const projectView =
+    activeView === "installed" ||
+    activeView === "repo" ||
+    activeView.startsWith("project:");
+
   useEffect(() => {
-    if (activeView !== "installed" || localSkillsLoading) {
+    if (!projectView || localSkillsLoading) {
       setRegisteredSkillsPanelReady(false);
       return;
     }
@@ -34,18 +39,14 @@ export function useSkillsWorkspaceProject({
     }, 300);
 
     return () => window.clearTimeout(timer);
-  }, [activeView, localSkillsLoading]);
+  }, [activeView, localSkillsLoading, projectView]);
 
   useEffect(() => {
     let cancelled = false;
     const normalizedProjectId = creationProjectId?.trim() || null;
 
     const loadCurrentProject = async () => {
-      if (
-        activeView !== "installed" ||
-        !registeredSkillsPanelReady ||
-        !normalizedProjectId
-      ) {
+      if (!projectView || !registeredSkillsPanelReady || !normalizedProjectId) {
         setCurrentProjectState({
           id: null,
           rootPath: null,
@@ -76,6 +77,7 @@ export function useSkillsWorkspaceProject({
         }
         setCurrentProjectState({
           id: project.id,
+          name: project.name,
           rootPath: project.rootPath,
           pending: false,
           error: null,
@@ -98,7 +100,7 @@ export function useSkillsWorkspaceProject({
     return () => {
       cancelled = true;
     };
-  }, [activeView, creationProjectId, registeredSkillsPanelReady]);
+  }, [activeView, creationProjectId, projectView, registeredSkillsPanelReady]);
 
   return { currentProjectState };
 }

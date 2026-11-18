@@ -175,5 +175,6 @@
   "common.modelCapabilities.vision.inactive": "无多模态",
   "common.modelSelector.state.loginRequired": "需要登录",
   "common.temporaryChat.name": "临时聊天",
-  "common.temporaryChat.failed": "无法创建临时聊天"
+  "common.temporaryChat.failed": "无法创建临时聊天",
+  "common.modelSelector.reasoning.choose": "选择推理强度"
 }

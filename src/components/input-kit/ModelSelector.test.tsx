@@ -943,11 +943,11 @@ describe("ModelSelector", () => {
 
     expect(
       container.querySelector('[data-testid="model-selector"]')?.textContent,
-    ).toContain("思考 中");
+    ).toContain("中");
     expect(
       container.querySelector('[data-testid="model-selector-effort"]')
         ?.textContent,
-    ).toContain("思考 中");
+    ).toContain("中");
 
     clickModelSelectorTrigger(container);
 
@@ -957,7 +957,18 @@ describe("ModelSelector", () => {
     expect(panel?.textContent).toContain("推理强度");
     expect(panel?.textContent).not.toContain("接口声明");
 
-    clickBodyButtonByText("高");
+    const slider = panel?.querySelector<HTMLInputElement>(
+      'input[type="range"]',
+    );
+    expect(slider).not.toBeNull();
+    if (slider) {
+      const setValue = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      setValue?.call(slider, "2");
+      slider.dispatchEvent(new Event("input", { bubbles: true }));
+    }
 
     expect(setReasoningEffort).toHaveBeenCalledWith("high");
     expect(
@@ -1105,10 +1116,19 @@ describe("ModelSelector", () => {
     const panel = document.body.querySelector(
       '[data-testid="model-selector-reasoning-effort"]',
     );
-    expect(panel?.textContent).toContain("Deep");
     expect(panel?.textContent).toContain("Balanced");
-
-    clickBodyButtonByText("Deep");
+    const slider = panel?.querySelector<HTMLInputElement>(
+      'input[type="range"]',
+    );
+    expect(slider).not.toBeNull();
+    if (slider) {
+      const setValue = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      setValue?.call(slider, "0");
+      slider.dispatchEvent(new Event("input", { bubbles: true }));
+    }
 
     expect(setReasoningEffort).toHaveBeenCalledWith("xhigh");
     expect(setReasoningEffort).not.toHaveBeenCalledWith("deep");

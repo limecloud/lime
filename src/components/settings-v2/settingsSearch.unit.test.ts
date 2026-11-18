@@ -493,7 +493,7 @@ describe("current settings search projection", () => {
 });
 
 it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
-  "%s resolves MCP fields to the MCP settings page",
+  "%s resolves MCP fields to the plugins settings page",
   (locale) => {
     const { t, groups } = localize(locale);
     for (const key of ["addServer", "authenticate", "envVars"]) {
@@ -501,12 +501,12 @@ it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
         searchSettings(t("settings.plugins.mcp." + key), groups, t),
       ).toContainEqual(
         expect.objectContaining({
-          section: SettingsTabs.McpServers,
+          section: SettingsTabs.Plugins,
           targetId: "mcp-servers",
         }),
       );
     }
-    expect(isSettingsSearchTarget(SettingsTabs.McpServers, "mcp-servers")).toBe(
+    expect(isSettingsSearchTarget(SettingsTabs.Plugins, "mcp-servers")).toBe(
       true,
     );
     expect(searchSettings("fixture-secret-mcp-token", groups, t)).toEqual([]);

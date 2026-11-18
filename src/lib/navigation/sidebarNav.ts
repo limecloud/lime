@@ -1,6 +1,6 @@
 import {
   Boxes,
-  CalendarClock,
+  Clock3,
   SquarePen,
   Settings,
   type LucideIcon,
@@ -50,7 +50,7 @@ const BASE_MAIN_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
   {
     id: "scheduled-tasks",
     label: "已安排任务",
-    icon: CalendarClock,
+    icon: Clock3,
     page: "scheduled-tasks",
     isActive: (currentPage) => currentPage === "scheduled-tasks",
     configurable: false,

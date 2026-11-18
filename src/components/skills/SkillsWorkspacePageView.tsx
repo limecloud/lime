@@ -490,7 +490,8 @@ export function SkillsWorkspacePageView(props: SkillsWorkspacePageViewProps) {
               </div>
             ) : null}
 
-            {props.activeView === "repo" ? (
+            {props.activeView === "repo" ||
+            props.activeView.startsWith("project:") ? (
               <section
                 id="skills-repo-view"
                 role="tabpanel"

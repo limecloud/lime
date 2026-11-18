@@ -78,6 +78,10 @@ impl ExecProcess for BlockingFirstWriteProcess {
         }))
     }
 
+    fn close_stdin(&self) -> ExecProcessFuture<'_, ()> {
+        Box::pin(async { Ok(()) })
+    }
+
     fn signal(&self, _signal: ProcessSignal) -> ExecProcessFuture<'_, ()> {
         Box::pin(async { Ok(()) })
     }
@@ -116,6 +120,10 @@ impl ExecProcess for RetainedReadProcess {
 
     fn write(&self, _chunk: Vec<u8>) -> ExecProcessFuture<'_, WriteResponse> {
         Box::pin(async { unreachable!("recovery tests should not write process input") })
+    }
+
+    fn close_stdin(&self) -> ExecProcessFuture<'_, ()> {
+        Box::pin(async { Ok(()) })
     }
 
     fn signal(&self, _signal: ProcessSignal) -> ExecProcessFuture<'_, ()> {

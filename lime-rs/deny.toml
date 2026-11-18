@@ -20,6 +20,8 @@ ignore = [
     { id = "RUSTSEC-2026-0371", reason = "zbus_names 3.0.0 属于 keyring 3.6.3/secret-service 4 的 Linux 系统密钥库 D-Bus 协议；合并到 zbus 6 后尚无对应稳定 Secret Service 发行版，infra owner 在完整原生密钥库回归后迁移。" },
     { id = "RUSTSEC-2026-0370", reason = "zvariant 4.2.0 属于 keyring/secret-service 的 Linux D-Bus wire 实现；公告仅为合并进 zbus 6 的停维通知，infra owner 随稳定 Secret Service API 迁移，不变更凭据存储或错误边界。" },
     { id = "RUSTSEC-2026-0372", reason = "zvariant_derive 4.2.0 是上述 Linux D-Bus 类型的编译期派生宏；随 secret-service 迁移到 zbus 6 一并移除，由 infra owner 复核原生密钥库行为。" },
+    { id = "RUSTSEC-2026-0555", reason = "chrono-tz 0.10.4 仅由 app-server 的时区名称解析消费；上游暂无安全升级版本，保留本地时区语义，待 chrono-tz 维护者发布替代后迁移。" },
+    { id = "RUSTSEC-2026-0543", reason = "chrono 0.4.45 是 App Server、exec-server 与 TUI 的现役时间类型；尚无同 API 安全升级，保留运行时时间语义，待上游替代方案落地后迁移。" },
 ]
 
 [licenses]

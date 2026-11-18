@@ -27,6 +27,13 @@ vi.mock("@/lib/api/browserSettings", async (importOriginal) => ({
   },
   updateBrowserSetting: update,
 }));
+vi.mock("@/lib/api/browserExtensions", () => ({
+  listBrowserExtensions: async () => [],
+  loadBrowserExtension: vi.fn(),
+  importChromeBrowserExtensions: vi.fn(),
+  removeBrowserExtension: vi.fn(),
+  setBrowserExtensionEnabled: vi.fn(),
+}));
 vi.mock("@/lib/api/appConfig", () => ({
   subscribeAppConfigChanged: () => () => {},
 }));

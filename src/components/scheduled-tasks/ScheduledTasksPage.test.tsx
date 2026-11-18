@@ -220,7 +220,7 @@ describe("ScheduledTasksPage", () => {
     const container = renderPage({ onNavigate });
     await flushEffects();
 
-    expect(container.textContent).toContain("没有已安排的任务");
+    expect(container.textContent).not.toContain("没有已安排的任务");
     expect(container.textContent).toContain("安排任务");
 
     await click(findButton(container, "新建任务"));

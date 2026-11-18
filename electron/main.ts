@@ -1235,19 +1235,12 @@ function registerIpcHandlers(): void {
       if (!normalizedSessionId) {
         throw new Error("sessionId is required");
       }
-      const window = createNewWindow();
-      window.webContents.once("did-finish-load", () => {
-        setTimeout(() => {
-          if (window.isDestroyed()) {
-            return;
-          }
-          window.webContents.send("evt:deep-link-open-url", {
-            payload: [
-              `lime://session?sessionId=${encodeURIComponent(normalizedSessionId)}`,
-            ],
-          });
-        }, 250);
-      });
+      // 新窗口 renderer 启动时通过 getCurrent() 消费挂起深链；先入队再建窗，
+      // 避免 did-finish-load 之后发送事件时监听器尚未注册。
+      pendingDeepLinks.push(
+        `lime://session?sessionId=${encodeURIComponent(normalizedSessionId)}`,
+      );
+      createNewWindow();
     },
   );
 }

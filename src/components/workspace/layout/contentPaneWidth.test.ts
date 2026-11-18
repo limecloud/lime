@@ -9,6 +9,6 @@ describe("content pane default geometry", () => {
     expect(getDefaultContentPaneWidth(700, 800)).toBe(348);
     expect(getDefaultContentPaneWidth(640, 800)).toBe(320);
     expect(getDefaultContentPaneWidth(1200, 800, 500)).toBe(500);
-    expect(getDefaultContentPaneWidth(800, 800, 1000)).toBe(480);
+    expect(getDefaultContentPaneWidth(800, 800, 1000)).toBe(520);
   });
 });

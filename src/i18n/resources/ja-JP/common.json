@@ -175,5 +175,6 @@
   "common.modelCapabilities.vision.inactive": "マルチモーダルなし",
   "common.modelSelector.state.loginRequired": "ログインが必要",
   "common.temporaryChat.name": "一時チャット",
-  "common.temporaryChat.failed": "一時チャットを開始できませんでした"
+  "common.temporaryChat.failed": "一時チャットを開始できませんでした",
+  "common.modelSelector.reasoning.choose": "推論の強度を選択"
 }

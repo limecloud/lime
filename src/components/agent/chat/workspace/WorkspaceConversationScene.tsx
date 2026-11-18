@@ -706,6 +706,8 @@ export function WorkspaceConversationScene({
           )
         }
         chatPanelWidth={chatPanelWidth}
+        showHomeNewTab={messageListProps.messages.length === 0}
+        homeNewTabWorkspaceRoot={canvasWorkbenchLayoutProps.workspaceRoot}
         generalWorkbenchDialog={generalWorkbenchDialog}
         showFloatingInputOverlay={showFloatingInputOverlay}
         hasPendingA2UIForm={hasPendingA2UIForm}

@@ -175,5 +175,6 @@
   "common.modelCapabilities.vision.inactive": "No multimodal",
   "common.modelSelector.state.loginRequired": "Sign-in required",
   "common.temporaryChat.name": "Temporary chat",
-  "common.temporaryChat.failed": "Could not start a temporary chat"
+  "common.temporaryChat.failed": "Could not start a temporary chat",
+  "common.modelSelector.reasoning.choose": "Select reasoning effort"
 }
