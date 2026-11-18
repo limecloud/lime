@@ -39,7 +39,7 @@
   "agentChat.inputbar.core.projectContext.projectOpenFailed": "Failed to open project",
   "agentChat.inputbar.core.projectContext.noProjectAction": "Continue regular chat",
   "agentChat.inputbar.core.projectContext.modeLabel": "Run mode",
-  "agentChat.inputbar.core.projectContext.localMode": "Local mode",
+  "agentChat.inputbar.core.projectContext.localMode": "Local",
   "agentChat.inputbar.core.projectContext.modeMenuTitle": "Launch mode",
   "agentChat.inputbar.core.projectContext.localProcessing": "Process locally",
   "agentChat.inputbar.core.projectContext.newWorktree": "New worktree",

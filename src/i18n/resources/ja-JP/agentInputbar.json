@@ -39,7 +39,7 @@
   "agentChat.inputbar.core.projectContext.projectOpenFailed": "プロジェクトを開けませんでした",
   "agentChat.inputbar.core.projectContext.noProjectAction": "通常チャットを続ける",
   "agentChat.inputbar.core.projectContext.modeLabel": "実行モード",
-  "agentChat.inputbar.core.projectContext.localMode": "ローカルモード",
+  "agentChat.inputbar.core.projectContext.localMode": "ローカル",
   "agentChat.inputbar.core.projectContext.modeMenuTitle": "起動モード",
   "agentChat.inputbar.core.projectContext.localProcessing": "ローカルで処理",
   "agentChat.inputbar.core.projectContext.newWorktree": "新しいワークツリー",

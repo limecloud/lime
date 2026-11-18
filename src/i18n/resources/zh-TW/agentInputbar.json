@@ -39,7 +39,7 @@
   "agentChat.inputbar.core.projectContext.projectOpenFailed": "開啟專案失敗",
   "agentChat.inputbar.core.projectContext.noProjectAction": "繼續普通對話",
   "agentChat.inputbar.core.projectContext.modeLabel": "執行模式",
-  "agentChat.inputbar.core.projectContext.localMode": "本機模式",
+  "agentChat.inputbar.core.projectContext.localMode": "本機",
   "agentChat.inputbar.core.projectContext.modeMenuTitle": "啟動模式",
   "agentChat.inputbar.core.projectContext.localProcessing": "在本機處理",
   "agentChat.inputbar.core.projectContext.newWorktree": "新工作樹",

@@ -454,8 +454,8 @@ export const SendButton = styled(InputIconButton).attrs({
 
   &:disabled {
     border-color: transparent;
-    background: var(--lime-text-strong, #1a1c1f);
-    color: var(--lime-surface, #ffffff);
+    background: var(--lime-surface-hover, #ececec);
+    color: var(--lime-text-muted, #8e8e8e);
     opacity: 1;
     box-shadow: none;
   }

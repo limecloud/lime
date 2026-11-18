@@ -39,7 +39,7 @@
   "agentChat.inputbar.core.projectContext.projectOpenFailed": "打开项目失败",
   "agentChat.inputbar.core.projectContext.noProjectAction": "继续普通对话",
   "agentChat.inputbar.core.projectContext.modeLabel": "运行模式",
-  "agentChat.inputbar.core.projectContext.localMode": "本地模式",
+  "agentChat.inputbar.core.projectContext.localMode": "本地",
   "agentChat.inputbar.core.projectContext.modeMenuTitle": "启动模式",
   "agentChat.inputbar.core.projectContext.localProcessing": "在本地处理",
   "agentChat.inputbar.core.projectContext.newWorktree": "新工作树",

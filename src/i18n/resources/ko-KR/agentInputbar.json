@@ -39,7 +39,7 @@
   "agentChat.inputbar.core.projectContext.projectOpenFailed": "프로젝트 열기 실패",
   "agentChat.inputbar.core.projectContext.noProjectAction": "일반 대화 계속",
   "agentChat.inputbar.core.projectContext.modeLabel": "실행 모드",
-  "agentChat.inputbar.core.projectContext.localMode": "로컬 모드",
+  "agentChat.inputbar.core.projectContext.localMode": "로컬",
   "agentChat.inputbar.core.projectContext.modeMenuTitle": "시작 모드",
   "agentChat.inputbar.core.projectContext.localProcessing": "로컬에서 처리",
   "agentChat.inputbar.core.projectContext.newWorktree": "새 워크트리",
