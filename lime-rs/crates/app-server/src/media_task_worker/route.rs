@@ -294,6 +294,7 @@ pub(super) fn video_generation_runner_config_from_resolved_route(
     let executor_mode = match protocol.as_str() {
         "fal" => "fal_video_generation",
         "xai_video" => "xai_video_generation",
+        "wavespeed_video" => "wavespeed_video_generation",
         _ => return Ok(None),
     };
     patch_task_artifact(
@@ -320,6 +321,12 @@ pub(super) fn video_generation_runner_config_from_resolved_route(
             credential.auth_prefix,
         ),
         "xai_video" => VideoGenerationRunnerConfig::xai(
+            endpoint,
+            credential.api_key,
+            credential.auth_header,
+            credential.auth_prefix,
+        ),
+        "wavespeed_video" => VideoGenerationRunnerConfig::wavespeed(
             endpoint,
             credential.api_key,
             credential.auth_header,
@@ -511,7 +518,18 @@ fn video_generation_endpoint_from_route(
             ))
         }
         "xai_video" => Some(xai_video_generation_endpoint(&normalized)),
+        "wavespeed_video" => Some(wavespeed_video_generation_endpoint(&normalized, model_id)),
         _ => None,
+    }
+}
+
+fn wavespeed_video_generation_endpoint(base_url: &str, model_id: &str) -> String {
+    let normalized = base_url.trim().trim_end_matches('/');
+    let model_id = model_id.trim().trim_matches('/');
+    if normalized.ends_with("/api/v3") {
+        format!("{normalized}/{model_id}")
+    } else {
+        format!("{normalized}/api/v3/{model_id}")
     }
 }
 
@@ -909,6 +927,24 @@ mod tests {
                 .as_deref(),
             Some("https://api.x.ai/v1/videos/generations")
         );
+
+        for base_url in [
+            "https://api.wavespeed.ai",
+            "https://api.wavespeed.ai/api/v3/",
+        ] {
+            let wavespeed_route = serde_json::json!({
+                "endpoint": { "baseUrl": base_url }
+            });
+            assert_eq!(
+                video_generation_endpoint_from_route(
+                    &wavespeed_route,
+                    "wavespeed_video",
+                    "alibaba/wan-3.0/text-to-video"
+                )
+                .as_deref(),
+                Some("https://api.wavespeed.ai/api/v3/alibaba/wan-3.0/text-to-video")
+            );
+        }
     }
 
     #[test]

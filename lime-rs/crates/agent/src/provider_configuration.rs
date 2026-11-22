@@ -380,6 +380,7 @@ mod tests {
             ProtocolKind::OpenaiImages,
             ProtocolKind::Fal,
             ProtocolKind::XaiVideo,
+            ProtocolKind::WavespeedVideo,
             ProtocolKind::BedrockConverse,
             ProtocolKind::Unknown,
         ] {
@@ -397,6 +398,7 @@ mod tests {
             ProtocolKind::OpenaiImages,
             ProtocolKind::Fal,
             ProtocolKind::XaiVideo,
+            ProtocolKind::WavespeedVideo,
             ProtocolKind::BedrockConverse,
             ProtocolKind::Unknown,
         ] {

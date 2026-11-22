@@ -88,6 +88,10 @@ fn protocol_support_rejects_chat_for_media_tasks() {
         video_executor_mode_from_route_protocol(Some("xai_video")),
         Some("xai_video_generation")
     );
+    assert_eq!(
+        video_executor_mode_from_route_protocol(Some("wavespeed_video")),
+        Some("wavespeed_video_generation")
+    );
     assert!(!supports_image_generation_route_protocol(Some(
         "openai_chat"
     )));

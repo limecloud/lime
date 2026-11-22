@@ -9672,6 +9672,7 @@ export type ProtocolKind =
   | "openai_responses"
   | "unknown"
   | "vertex_gemini"
+  | "wavespeed_video"
   | "xai_video";
 
 export interface ProviderInfo {

@@ -19,6 +19,7 @@ use super::{
 pub const VIDEO_TASK_RUNNER_WORKER_ID: &str = "media-video-api-worker";
 const VIDEO_TASK_RUNNER_TIMEOUT_SECS: u64 = 300;
 const XAI_VIDEO_POLL_INTERVAL_SECS: u64 = 5;
+const WAVESPEED_VIDEO_POLL_INTERVAL_SECS: u64 = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VideoGenerationRunnerConfig {
@@ -62,6 +63,23 @@ impl VideoGenerationRunnerConfig {
             auth_header,
             auth_prefix,
             poll_interval: Duration::from_secs(XAI_VIDEO_POLL_INTERVAL_SECS),
+            overall_timeout: Duration::from_secs(VIDEO_TASK_RUNNER_TIMEOUT_SECS),
+        }
+    }
+
+    pub fn wavespeed(
+        endpoint: String,
+        api_key: String,
+        auth_header: String,
+        auth_prefix: Option<String>,
+    ) -> Self {
+        Self {
+            protocol: VideoProtocol::WaveSpeed,
+            endpoint,
+            api_key,
+            auth_header,
+            auth_prefix,
+            poll_interval: Duration::from_secs(WAVESPEED_VIDEO_POLL_INTERVAL_SECS),
             overall_timeout: Duration::from_secs(VIDEO_TASK_RUNNER_TIMEOUT_SECS),
         }
     }
@@ -426,6 +444,7 @@ fn video_protocol_name(protocol: VideoProtocol) -> &'static str {
     match protocol {
         VideoProtocol::Fal => "fal",
         VideoProtocol::Xai => "xai_video",
+        VideoProtocol::WaveSpeed => "wavespeed_video",
     }
 }
 

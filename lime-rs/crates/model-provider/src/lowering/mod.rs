@@ -12,6 +12,7 @@ mod embeddings;
 mod fal_video_generation;
 mod openai_images;
 mod openai_responses_image_generation;
+mod wavespeed_video_generation;
 mod xai_video_generation;
 
 pub use common::ProtocolMappingError;
@@ -71,6 +72,12 @@ pub fn build_xai_video_generation_body(
     request: &CanonicalRequest,
 ) -> Result<serde_json::Value, ProtocolMappingError> {
     xai_video_generation::body_for_model(model_id, request)
+}
+
+pub fn build_wavespeed_video_generation_body(
+    request: &CanonicalRequest,
+) -> Result<serde_json::Value, ProtocolMappingError> {
+    wavespeed_video_generation::body_for_model(request)
 }
 
 pub fn build_responses_image_generation_body(

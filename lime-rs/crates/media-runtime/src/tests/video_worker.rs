@@ -403,3 +403,317 @@ async fn xai_video_task_resumes_polling_without_restarting_generation() {
 
     server.abort();
 }
+
+#[tokio::test]
+async fn wavespeed_video_task_persists_prediction_id_and_polls_to_completed() {
+    let temp_dir = tempfile::tempdir().expect("create temp dir");
+    let captured_auth = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_body = Arc::new(Mutex::new(None::<Value>));
+    let poll_count = Arc::new(AtomicUsize::new(0));
+    let created = write_task_artifact(
+        temp_dir.path(),
+        TaskType::VideoGenerate,
+        Some("WaveSpeedAI 视频".to_string()),
+        json!({
+            "prompt": "让青柠切片在白色背景上缓慢旋转",
+            "provider_id": "wavespeed",
+            "model": "alibaba/wan-3.0/image-to-video",
+            "resolution": "720p",
+            "duration": 5,
+            "image_url": "https://example.test/lime.png",
+            "generate_audio": false
+        }),
+        TaskWriteOptions {
+            status: Some("pending_submit".to_string()),
+            ..TaskWriteOptions::default()
+        },
+    )
+    .expect("create WaveSpeedAI video task");
+
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind WaveSpeedAI video API");
+    let address = listener.local_addr().expect("resolve WaveSpeedAI address");
+    let start_auth = Arc::clone(&captured_auth);
+    let start_body = Arc::clone(&captured_body);
+    let poll_auth = Arc::clone(&captured_auth);
+    let polls = Arc::clone(&poll_count);
+    let server = tokio::spawn(async move {
+        let app = Router::new()
+            .route(
+                "/api/v3/alibaba/wan-3.0/image-to-video",
+                post(move |headers: HeaderMap, Json(body): Json<Value>| {
+                    let captured_auth = Arc::clone(&start_auth);
+                    let captured_body = Arc::clone(&start_body);
+                    async move {
+                        captured_auth.lock().expect("start auth").push(
+                            headers
+                                .get("authorization")
+                                .and_then(|value| value.to_str().ok())
+                                .unwrap_or_default()
+                                .to_string(),
+                        );
+                        *captured_body.lock().expect("start body") = Some(body);
+                        (
+                            StatusCode::OK,
+                            Json(json!({
+                                "code": 200,
+                                "message": "success",
+                                "data": { "id": "ws-pred-1", "status": "created", "outputs": [] }
+                            })),
+                        )
+                    }
+                }),
+            )
+            .route(
+                "/api/v3/predictions/ws-pred-1/result",
+                get(move |headers: HeaderMap| {
+                    let captured_auth = Arc::clone(&poll_auth);
+                    let polls = Arc::clone(&polls);
+                    async move {
+                        captured_auth.lock().expect("poll auth").push(
+                            headers
+                                .get("authorization")
+                                .and_then(|value| value.to_str().ok())
+                                .unwrap_or_default()
+                                .to_string(),
+                        );
+                        let status = if polls.fetch_add(1, Ordering::SeqCst) == 0 {
+                            "processing"
+                        } else {
+                            "completed"
+                        };
+                        (
+                            StatusCode::OK,
+                            Json(json!({
+                                "code": 200,
+                                "message": "success",
+                                "data": {
+                                    "id": "ws-pred-1",
+                                    "status": status,
+                                    "outputs": if status == "completed" {
+                                        json!(["https://cdn.example.test/ws-video.mp4"])
+                                    } else {
+                                        json!([])
+                                    }
+                                }
+                            })),
+                        )
+                    }
+                }),
+            );
+        axum::serve(listener, app)
+            .await
+            .expect("serve WaveSpeedAI video API");
+    });
+
+    let mut config = VideoGenerationRunnerConfig::wavespeed(
+        format!("http://{address}/api/v3/alibaba/wan-3.0/image-to-video"),
+        "ws-key".to_string(),
+        "Authorization".to_string(),
+        Some("Bearer".to_string()),
+    );
+    config.poll_interval = Duration::from_millis(1);
+    config.overall_timeout = Duration::from_secs(1);
+    let result = execute_video_generation_task(temp_dir.path(), &created.task_id, &config)
+        .await
+        .expect("execute WaveSpeedAI video task");
+
+    assert_eq!(result.normalized_status, "succeeded");
+    assert_eq!(
+        result.record.payload.pointer("/provider_task/protocol"),
+        Some(&json!("wavespeed_video"))
+    );
+    assert_eq!(
+        result.record.payload.pointer("/provider_task/request_id"),
+        Some(&json!("ws-pred-1"))
+    );
+    assert_eq!(
+        result
+            .record
+            .result
+            .as_ref()
+            .and_then(|value| value.pointer("/video/url")),
+        Some(&json!("https://cdn.example.test/ws-video.mp4"))
+    );
+    assert_eq!(poll_count.load(Ordering::SeqCst), 2);
+    assert_eq!(
+        captured_auth.lock().expect("captured auth").as_slice(),
+        ["Bearer ws-key", "Bearer ws-key", "Bearer ws-key"]
+    );
+    let body = captured_body
+        .lock()
+        .expect("captured body")
+        .clone()
+        .expect("WaveSpeedAI start body");
+    assert_eq!(body.get("model"), None);
+    assert_eq!(body["prompt"], "让青柠切片在白色背景上缓慢旋转");
+    assert_eq!(body["image"], "https://example.test/lime.png");
+    assert_eq!(body["duration"], 5);
+    assert_eq!(body["resolution"], "720p");
+    assert_eq!(body["generate_audio"], false);
+
+    server.abort();
+}
+
+#[tokio::test]
+async fn wavespeed_envelope_error_fails_task_without_polling() {
+    let temp_dir = tempfile::tempdir().expect("create temp dir");
+    let poll_count = Arc::new(AtomicUsize::new(0));
+    let created = write_task_artifact(
+        temp_dir.path(),
+        TaskType::VideoGenerate,
+        Some("WaveSpeedAI 视频错误".to_string()),
+        json!({
+            "prompt": "生成视频",
+            "provider_id": "wavespeed",
+            "model": "alibaba/wan-3.0/text-to-video"
+        }),
+        TaskWriteOptions {
+            status: Some("pending_submit".to_string()),
+            ..TaskWriteOptions::default()
+        },
+    )
+    .expect("create WaveSpeedAI video task");
+
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind WaveSpeedAI error API");
+    let address = listener.local_addr().expect("resolve error address");
+    let polls = Arc::clone(&poll_count);
+    let server = tokio::spawn(async move {
+        let app = Router::new()
+            .route(
+                "/api/v3/alibaba/wan-3.0/text-to-video",
+                post(|| async {
+                    (
+                        StatusCode::OK,
+                        Json(
+                            json!({ "code": 400, "message": "insufficient balance", "data": null }),
+                        ),
+                    )
+                }),
+            )
+            .fallback(move || {
+                let polls = Arc::clone(&polls);
+                async move {
+                    polls.fetch_add(1, Ordering::SeqCst);
+                    StatusCode::NOT_FOUND
+                }
+            });
+        axum::serve(listener, app)
+            .await
+            .expect("serve WaveSpeedAI error API");
+    });
+
+    let mut config = VideoGenerationRunnerConfig::wavespeed(
+        format!("http://{address}/api/v3/alibaba/wan-3.0/text-to-video"),
+        "ws-key".to_string(),
+        "Authorization".to_string(),
+        Some("Bearer".to_string()),
+    );
+    config.poll_interval = Duration::from_millis(1);
+    config.overall_timeout = Duration::from_secs(1);
+    let result = execute_video_generation_task(temp_dir.path(), &created.task_id, &config).await;
+
+    let output = match result {
+        Ok(output) => output,
+        Err(error) => panic!("task runner should record the provider failure: {error}"),
+    };
+    assert_eq!(output.normalized_status, "failed");
+    let error_text = serde_json::to_string(&output.record).expect("serialize record");
+    assert!(error_text.contains("insufficient balance"), "{error_text}");
+    assert_eq!(poll_count.load(Ordering::SeqCst), 0);
+
+    server.abort();
+}
+
+#[tokio::test]
+async fn wavespeed_video_task_resumes_polling_without_resubmitting() {
+    let temp_dir = tempfile::tempdir().expect("create temp dir");
+    let start_count = Arc::new(AtomicUsize::new(0));
+    let created = write_task_artifact(
+        temp_dir.path(),
+        TaskType::VideoGenerate,
+        Some("恢复 WaveSpeedAI 视频".to_string()),
+        json!({
+            "prompt": "恢复既有视频任务",
+            "provider_id": "wavespeed",
+            "model": "alibaba/wan-3.0/text-to-video",
+            "provider_task": {
+                "protocol": "wavespeed_video",
+                "request_id": "ws-resume-1",
+                "status": "processing"
+            }
+        }),
+        TaskWriteOptions {
+            status: Some("running".to_string()),
+            ..TaskWriteOptions::default()
+        },
+    )
+    .expect("create resumable WaveSpeedAI task");
+
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind resume WaveSpeedAI API");
+    let address = listener.local_addr().expect("resolve resume address");
+    let starts = Arc::clone(&start_count);
+    let server = tokio::spawn(async move {
+        let app = Router::new()
+            .route(
+                "/api/v3/alibaba/wan-3.0/text-to-video",
+                post(move || {
+                    let starts = Arc::clone(&starts);
+                    async move {
+                        starts.fetch_add(1, Ordering::SeqCst);
+                        StatusCode::INTERNAL_SERVER_ERROR
+                    }
+                }),
+            )
+            .route(
+                "/api/v3/predictions/ws-resume-1/result",
+                get(|| async {
+                    (
+                        StatusCode::OK,
+                        Json(json!({
+                            "code": 200,
+                            "message": "success",
+                            "data": {
+                                "id": "ws-resume-1",
+                                "status": "completed",
+                                "outputs": ["https://cdn.example.test/ws-resumed.mp4"]
+                            }
+                        })),
+                    )
+                }),
+            );
+        axum::serve(listener, app)
+            .await
+            .expect("serve resume WaveSpeedAI API");
+    });
+
+    let mut config = VideoGenerationRunnerConfig::wavespeed(
+        format!("http://{address}/api/v3/alibaba/wan-3.0/text-to-video"),
+        "ws-key".to_string(),
+        "Authorization".to_string(),
+        Some("Bearer".to_string()),
+    );
+    config.poll_interval = Duration::from_millis(1);
+    config.overall_timeout = Duration::from_secs(1);
+    let result = execute_video_generation_task(temp_dir.path(), &created.task_id, &config)
+        .await
+        .expect("resume WaveSpeedAI video task");
+
+    assert_eq!(result.normalized_status, "succeeded");
+    assert_eq!(start_count.load(Ordering::SeqCst), 0);
+    assert_eq!(
+        result
+            .record
+            .result
+            .as_ref()
+            .and_then(|value| value.pointer("/video/url")),
+        Some(&json!("https://cdn.example.test/ws-resumed.mp4"))
+    );
+
+    server.abort();
+}
