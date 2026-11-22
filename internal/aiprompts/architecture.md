@@ -3977,21 +3977,23 @@ provider model capability { taskFamilies: [video_generation], outputModalities: 
   -> model-provider protocol lowering + network execution
        -> Fal synchronous POST
        -> xAI POST /videos/generations -> durable request_id -> GET /videos/{id}
+       -> WaveSpeedAI POST /api/v3/{model} -> durable prediction id -> GET /api/v3/predictions/{id}/result
   -> media-runtime durable provider progress + terminal task artifact
   -> mediaTaskArtifact/get read model
 ```
 
 `video_generation` must be provider-explicit or canonical and must produce `video`; model-name inference cannot authorize
 execution. A dedicated video model remains outside `model/list` because that method is the executable text chat picker.
-The worker accepts only `fal` or `xai_video`, resolves the exact durable credential reference, honors the route's header
+The worker accepts only `fal`, `xai_video` or `wavespeed_video`, resolves the exact durable credential reference, honors the route's header
 name and prefix, and records failed state when route or credential resolution is incomplete. Generic OpenAI video routes,
 hard-coded Bearer auth, an executable contract without binding, and creating an artifact without starting a worker are
 `dead / replaced / forbidden-to-restore`; no `compat/deprecated` path was added.
 
 This slice is intentionally a product skeleton, not full Grok video parity. Fal handles a synchronous provider result;
-xAI handles asynchronous start/poll and the `done/failed/expired/timeout/cancelled` terminal set. `media-runtime` persists
-`provider_task.protocol/request_id/status`, and the App Server scheduler resumes only stale running xAI tasks that already
-have a request id, so recovery polls without issuing a duplicate POST. `model-provider` is the only video HTTP and lowering
+xAI handles asynchronous start/poll and the `done/failed/expired/timeout/cancelled` terminal set; WaveSpeedAI uses the
+same start/poll shape with `completed/failed/timeout/cancelled` and treats a non-200 envelope `code` as failure. `media-runtime` persists
+`provider_task.protocol/request_id/status`, and the App Server scheduler resumes only stale running xAI or WaveSpeedAI tasks that
+already have a request id, so recovery polls without issuing a duplicate POST. `model-provider` is the only video HTTP and lowering
 owner; `media-runtime` owns task progress and artifacts only. Live provider validation, video GUI/history projection and
 audio workers remain `alignment-open` and must fail closed until implemented.
 

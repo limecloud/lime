@@ -299,6 +299,7 @@ fn route_protocol_name(protocol: &ProtocolKind) -> &'static str {
         ProtocolKind::GeminiGenerateContent => "gemini_generate_content",
         ProtocolKind::Fal => "fal",
         ProtocolKind::XaiVideo => "xai_video",
+        ProtocolKind::WavespeedVideo => "wavespeed_video",
         ProtocolKind::BedrockConverse => "bedrock_converse",
         ProtocolKind::VertexGemini => "vertex_gemini",
         ProtocolKind::Unknown => "unknown",

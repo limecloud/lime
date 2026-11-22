@@ -251,6 +251,12 @@ fn resolve_protocol(
         return ProtocolKind::XaiVideo;
     }
 
+    if task_request.task_kind == ModelTaskKind::VideoGenerate
+        && is_wavespeed_video_route(selection, provider)
+    {
+        return ProtocolKind::WavespeedVideo;
+    }
+
     if task_request.task_kind == ModelTaskKind::VoiceGenerate
         && route_has_any_runtime_feature(
             capability_snapshot,
@@ -419,6 +425,21 @@ fn is_xai_video_route(
             .is_some_and(|base_url| {
                 let base_url = base_url.trim().to_ascii_lowercase();
                 base_url.contains("api.x.ai") || base_url.contains("grok.com")
+            })
+}
+
+fn is_wavespeed_video_route(
+    selection: &ModelRouteSelection<'_>,
+    provider: Option<&ModelRouteProvider<'_>>,
+) -> bool {
+    normalize_token(selection.provider_id).as_deref() == Some("wavespeed")
+        || provider
+            .and_then(|provider| provider.base_url)
+            .is_some_and(|base_url| {
+                base_url
+                    .trim()
+                    .to_ascii_lowercase()
+                    .contains("api.wavespeed.ai")
             })
 }
 
@@ -640,7 +661,10 @@ fn protocol_supported_for_task(task_kind: ModelTaskKind, protocol: &ProtocolKind
                 | ProtocolKind::VertexGemini
         ),
         ModelTaskKind::VideoGenerate => {
-            matches!(protocol, ProtocolKind::Fal | ProtocolKind::XaiVideo)
+            matches!(
+                protocol,
+                ProtocolKind::Fal | ProtocolKind::XaiVideo | ProtocolKind::WavespeedVideo
+            )
         }
         ModelTaskKind::ImageGenerate | ModelTaskKind::ImageEdit => matches!(
             protocol,
@@ -733,6 +757,7 @@ fn framing_for_protocol(protocol: &ProtocolKind) -> FramingKind {
     match protocol {
         ProtocolKind::Fal
         | ProtocolKind::XaiVideo
+        | ProtocolKind::WavespeedVideo
         | ProtocolKind::OpenaiAudioSpeech
         | ProtocolKind::OpenaiAudioTranscription
         | ProtocolKind::OpenaiEmbeddings
@@ -1476,6 +1501,54 @@ mod tests {
         );
 
         assert_eq!(route.protocol, ProtocolKind::XaiVideo);
+        assert_eq!(route.framing, FramingKind::Json);
+        assert!(route.failure.is_none());
+    }
+
+    #[test]
+    fn wavespeed_video_task_uses_dedicated_json_protocol_by_base_url() {
+        let task_request = video_task_request("my-video-provider", "alibaba/wan-3.0/text-to-video");
+        let provider = ModelRouteProvider {
+            provider_id: "my-video-provider",
+            provider_type: Cow::Borrowed("openai"),
+            base_url: Some("https://api.wavespeed.ai"),
+            api_version: None,
+            project: None,
+            location: None,
+            region: None,
+            credential_ref: Some("runtime-api-key-wavespeed".to_string()),
+            auth_header: "Authorization",
+            auth_prefix: Some("Bearer"),
+            prompt_cache_mode: None,
+        };
+        let route = resolved_route_from_task(
+            &task_request,
+            ModelRouteSelection {
+                provider_id: "my-video-provider",
+                model_id: "alibaba/wan-3.0/text-to-video",
+                model_ref_source: ModelRefSource::Task,
+                reasoning_effort: None,
+            },
+            &json!({
+                "providerReadiness": { "ready": true, "status": "ready" },
+                "modelRegistry": {
+                    "source": "provider_declared_model",
+                    "status": "matched",
+                    "reasonCode": "matched_provider_models",
+                    "modelCapabilities": {
+                        "provenance": "provider_explicit",
+                        "taskFamilies": ["video_generation"],
+                        "inputModalities": ["text", "image"],
+                        "outputModalities": ["video"],
+                        "runtimeFeatures": ["responses_api"]
+                    }
+                }
+            }),
+            Some(&provider),
+            None,
+        );
+
+        assert_eq!(route.protocol, ProtocolKind::WavespeedVideo);
         assert_eq!(route.framing, FramingKind::Json);
         assert!(route.failure.is_none());
     }

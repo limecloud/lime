@@ -43,6 +43,7 @@ impl RuntimeProviderProtocol {
             | ProtocolKind::OpenaiEmbeddings
             | ProtocolKind::Fal
             | ProtocolKind::XaiVideo
+            | ProtocolKind::WavespeedVideo
             | ProtocolKind::BedrockConverse
             | ProtocolKind::Unknown => None,
         }
@@ -194,6 +195,7 @@ mod tests {
         for protocol in [
             ProtocolKind::OpenaiImages,
             ProtocolKind::Fal,
+            ProtocolKind::WavespeedVideo,
             ProtocolKind::BedrockConverse,
             ProtocolKind::Unknown,
         ] {

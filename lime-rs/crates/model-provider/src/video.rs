@@ -9,6 +9,8 @@ use serde_json::{json, Map, Value};
 use std::fmt;
 use std::time::Duration;
 
+mod wavespeed;
+
 pub const DEFAULT_VIDEO_REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
 pub const DEFAULT_XAI_VIDEO_POLL_INTERVAL: Duration = Duration::from_secs(5);
 
@@ -16,6 +18,7 @@ pub const DEFAULT_XAI_VIDEO_POLL_INTERVAL: Duration = Duration::from_secs(5);
 pub enum VideoProtocol {
     Fal,
     Xai,
+    WaveSpeed,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -118,6 +121,16 @@ where
         VideoProtocol::Fal => execute_fal(&client, config, request).await,
         VideoProtocol::Xai => {
             execute_xai(
+                &client,
+                config,
+                request,
+                &mut on_progress,
+                &mut is_cancelled,
+            )
+            .await
+        }
+        VideoProtocol::WaveSpeed => {
+            wavespeed::execute(
                 &client,
                 config,
                 request,

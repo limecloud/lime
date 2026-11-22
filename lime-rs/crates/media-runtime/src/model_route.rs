@@ -314,6 +314,7 @@ pub(crate) fn video_executor_mode_from_route_protocol(
     match normalized_token(protocol)?.as_str() {
         "fal" => Some("fal_video_generation"),
         "xai_video" => Some("xai_video_generation"),
+        "wavespeed_video" => Some("wavespeed_video_generation"),
         _ => None,
     }
 }

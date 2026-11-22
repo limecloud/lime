@@ -36,7 +36,10 @@ pub(super) fn should_recover_stale_running_video_task(
     if task.task_type != MediaTaskType::VideoGenerate.as_str()
         || task.normalized_status != "running"
         || current_attempt_worker_id(task).as_deref() != Some(VIDEO_TASK_RUNNER_WORKER_ID)
-        || provider_task_protocol(task).as_deref() != Some("xai_video")
+        || !matches!(
+            provider_task_protocol(task).as_deref(),
+            Some("xai_video" | "wavespeed_video")
+        )
         || provider_task_request_id(task).is_none()
     {
         return false;
@@ -94,7 +97,10 @@ pub(super) fn spawn_video_task_worker_for_existing_task(
 ) -> Option<JoinHandle<Result<MediaTaskOutput, String>>> {
     if !should_execute_pending_video_task(task)
         && !(task.normalized_status == "running"
-            && provider_task_protocol(task).as_deref() == Some("xai_video")
+            && matches!(
+                provider_task_protocol(task).as_deref(),
+                Some("xai_video" | "wavespeed_video")
+            )
             && provider_task_request_id(task).is_some())
     {
         return None;
@@ -301,6 +307,15 @@ mod tests {
 
         task.record["updated_at"] = serde_json::json!((now - Duration::seconds(61)).to_rfc3339());
         task.record["payload"]["provider_task"]["request_id"] = serde_json::Value::Null;
+        assert!(!should_recover_stale_running_video_task(&task, now));
+
+        task.record["payload"]["provider_task"] = serde_json::json!({
+            "protocol": "wavespeed_video",
+            "request_id": "prediction-1"
+        });
+        assert!(should_recover_stale_running_video_task(&task, now));
+
+        task.record["payload"]["provider_task"]["protocol"] = serde_json::json!("fal");
         assert!(!should_recover_stale_running_video_task(&task, now));
     }
 }

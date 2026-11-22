@@ -248,6 +248,7 @@ pub enum ProtocolKind {
     GeminiGenerateContent,
     Fal,
     XaiVideo,
+    WavespeedVideo,
     BedrockConverse,
     VertexGemini,
     Unknown,

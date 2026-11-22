@@ -62237,6 +62237,7 @@
         "openai_responses",
         "unknown",
         "vertex_gemini",
+        "wavespeed_video",
         "xai_video"
       ],
       "title": "ProtocolKind",
@@ -63596,6 +63597,7 @@
             "openai_responses",
             "unknown",
             "vertex_gemini",
+            "wavespeed_video",
             "xai_video"
           ],
           "type": "string"
